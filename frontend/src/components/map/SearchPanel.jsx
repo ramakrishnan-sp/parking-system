@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { Search, SlidersHorizontal, X, ChevronDown } from 'lucide-react'
+import { Search, SlidersHorizontal } from 'lucide-react'
+import { cn } from '../../lib/utils'
 
 const VEHICLE_TYPES = [
-  { value: '',    label: 'All vehicles' },
-  { value: 'car', label: 'Car' },
+  { value: '',     label: 'All' },
+  { value: 'car',  label: 'Car' },
   { value: 'bike', label: 'Bike' },
-  { value: 'ev',  label: 'EV' },
+  { value: 'ev',   label: 'EV' },
 ]
 
 const SORT_OPTIONS = [
@@ -14,7 +15,7 @@ const SORT_OPTIONS = [
   { value: 'rating',   label: 'Best rated' },
 ]
 
-export default function SearchPanel({ onSearch, loading = false }) {
+export default function SearchPanel({ onSearch, loading = false, resultCount = 0 }) {
   const [showFilters, setShowFilters] = useState(false)
   const [filters, setFilters] = useState({
     vehicle_type: '',
@@ -22,6 +23,8 @@ export default function SearchPanel({ onSearch, loading = false }) {
     radius: '2000',
     sort_by: 'distance',
   })
+
+  const set = (key, val) => setFilters((f) => ({ ...f, [key]: val }))
 
   const handleSearch = (e) => {
     e.preventDefault()
@@ -32,45 +35,47 @@ export default function SearchPanel({ onSearch, loading = false }) {
     })
   }
 
-  const setFilter = (key, value) => setFilters((f) => ({ ...f, [key]: value }))
-
   return (
-    <div className="card-float w-full max-w-sm">
+    <div className="rounded-2xl bg-card ring-1 ring-border shadow-float p-4 w-full max-w-sm">
       <form onSubmit={handleSearch} className="space-y-3">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-base font-bold text-gray-900">Find Parking</h2>
-            <p className="text-xs text-gray-500">Searching near your location</p>
+            <h2 className="text-sm font-semibold text-foreground">Find Parking</h2>
+            {resultCount > 0 && (
+              <p className="text-xs text-muted-foreground">{resultCount} spaces found</p>
+            )}
           </div>
           <button
             type="button"
             onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg transition-colors ${
-              showFilters ? 'bg-primary-50 text-primary-700' : 'text-gray-600 hover:bg-gray-100'
-            }`}
+            className={cn(
+              'flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors',
+              showFilters ? 'bg-brand/10 text-brand' : 'text-muted-foreground hover:bg-muted'
+            )}
           >
-            <SlidersHorizontal size={14} /> Filters
+            <SlidersHorizontal className="size-3.5" /> Filters
           </button>
         </div>
 
         {/* Filters */}
         {showFilters && (
-          <div className="space-y-3 pt-1 border-t border-gray-100 animate-slide-up">
+          <div className="space-y-3 pt-2 border-t border-border animate-slide-up">
             {/* Vehicle type */}
             <div>
-              <label className="label text-xs">Vehicle Type</label>
+              <p className="text-xs text-muted-foreground mb-1.5">Vehicle type</p>
               <div className="flex gap-1.5 flex-wrap">
                 {VEHICLE_TYPES.map((vt) => (
                   <button
                     key={vt.value}
                     type="button"
-                    onClick={() => setFilter('vehicle_type', vt.value)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                    onClick={() => set('vehicle_type', vt.value)}
+                    className={cn(
+                      'px-3 py-1 rounded-full text-xs font-medium transition-colors',
                       filters.vehicle_type === vt.value
-                        ? 'bg-primary-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
+                        ? 'bg-brand text-white'
+                        : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                    )}
                   >
                     {vt.label}
                   </button>
@@ -80,41 +85,40 @@ export default function SearchPanel({ onSearch, loading = false }) {
 
             {/* Max price */}
             <div>
-              <label className="label text-xs">Max Price / hr (₹)</label>
+              <p className="text-xs text-muted-foreground mb-1.5">Max price / hr (₹)</p>
               <input
                 type="number"
                 min="0"
                 placeholder="No limit"
                 value={filters.max_price}
-                onChange={(e) => setFilter('max_price', e.target.value)}
-                className="input text-sm py-2"
+                onChange={(e) => set('max_price', e.target.value)}
+                className="h-9 w-full rounded-md bg-background ring-1 ring-border px-3 text-sm outline-none focus:ring-2 focus:ring-brand/50"
               />
             </div>
 
-            {/* Radius */}
+            {/* Radius slider */}
             <div>
-              <label className="label text-xs">Search Radius: {parseInt(filters.radius) / 1000} km</label>
+              <p className="text-xs text-muted-foreground mb-1.5">
+                Radius: {(parseInt(filters.radius) / 1000).toFixed(1)} km
+              </p>
               <input
-                type="range"
-                min="500"
-                max="5000"
-                step="500"
+                type="range" min="500" max="5000" step="500"
                 value={filters.radius}
-                onChange={(e) => setFilter('radius', e.target.value)}
-                className="w-full accent-primary-600"
+                onChange={(e) => set('radius', e.target.value)}
+                className="w-full accent-brand"
               />
-              <div className="flex justify-between text-xs text-gray-400 mt-0.5">
-                <span>500m</span><span>5km</span>
+              <div className="flex justify-between text-xs text-muted-foreground mt-0.5">
+                <span>0.5km</span><span>5km</span>
               </div>
             </div>
 
             {/* Sort */}
             <div>
-              <label className="label text-xs">Sort by</label>
+              <p className="text-xs text-muted-foreground mb-1.5">Sort by</p>
               <select
                 value={filters.sort_by}
-                onChange={(e) => setFilter('sort_by', e.target.value)}
-                className="input text-sm py-2"
+                onChange={(e) => set('sort_by', e.target.value)}
+                className="h-9 w-full rounded-md bg-background ring-1 ring-border px-3 text-sm outline-none"
               >
                 {SORT_OPTIONS.map((s) => (
                   <option key={s.value} value={s.value}>{s.label}</option>
@@ -127,14 +131,13 @@ export default function SearchPanel({ onSearch, loading = false }) {
         <button
           type="submit"
           disabled={loading}
-          className="btn-primary w-full flex items-center justify-center gap-2 text-sm"
+          className="h-9 w-full rounded-lg bg-brand text-white text-sm font-medium flex items-center justify-center gap-2 hover:opacity-90 disabled:opacity-50 transition-all"
         >
-          {loading ? (
-            <span className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
-          ) : (
-            <Search size={16} />
-          )}
-          {loading ? 'Searching…' : 'Search Nearby Parking'}
+          {loading
+            ? <span className="size-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+            : <Search className="size-4" />
+          }
+          {loading ? 'Searching…' : 'Search Nearby'}
         </button>
       </form>
     </div>

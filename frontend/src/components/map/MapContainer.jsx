@@ -2,76 +2,86 @@ import { useEffect, useRef } from 'react'
 import {
   MapContainer as LeafletMap,
   TileLayer,
-  Marker,
   useMap,
 } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
-// Fix Leaflet's default icon broken paths when bundled with Vite
+// Fix Leaflet icon broken paths with Vite
 delete L.Icon.Default.prototype._getIconUrl
 L.Icon.Default.mergeOptions({
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  iconUrl:       'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
   iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+  shadowUrl:     'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 })
 
-// ── Custom SVG icons ──────────────────────────────────────────────────────────
+// ── Custom marker icons ───────────────────────────────────
 
-const parkingAvailableIcon = L.divIcon({
+export const parkingAvailableIcon = L.divIcon({
   className: '',
-  html: `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="48" viewBox="0 0 40 48">
-    <filter id="sh"><feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.3"/></filter>
-    <path d="M20 0C8.954 0 0 8.954 0 20c0 14 20 28 20 28S40 34 40 20C40 8.954 31.046 0 20 0z"
-          fill="#2563eb" filter="url(#sh)"/>
-    <circle cx="20" cy="20" r="10" fill="white"/>
-    <text x="20" y="25" text-anchor="middle" fill="#2563eb"
-          font-size="13" font-weight="700" font-family="Inter,sans-serif">P</text>
+  html: `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="44" viewBox="0 0 36 44">
+    <defs><filter id="s"><feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.25"/></filter></defs>
+    <path d="M18 0C8.059 0 0 8.059 0 18c0 12.6 18 26 18 26S36 30.6 36 18C36 8.059 27.941 0 18 0z"
+      fill="var(--brand, #9333ea)" filter="url(#s)"/>
+    <circle cx="18" cy="18" r="9" fill="white"/>
+    <text x="18" y="23" text-anchor="middle" fill="var(--brand, #9333ea)"
+      font-size="12" font-weight="700" font-family="Inter,sans-serif">P</text>
   </svg>`,
-  iconSize: [40, 48],
-  iconAnchor: [20, 48],
-  popupAnchor: [0, -48],
+  iconSize: [36, 44],
+  iconAnchor: [18, 44],
+  popupAnchor: [0, -44],
 })
 
-const parkingUnavailableIcon = L.divIcon({
+export const parkingFullIcon = L.divIcon({
   className: '',
-  html: `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="48" viewBox="0 0 40 48">
-    <path d="M20 0C8.954 0 0 8.954 0 20c0 14 20 28 20 28S40 34 40 20C40 8.954 31.046 0 20 0z"
-          fill="#9ca3af"/>
-    <circle cx="20" cy="20" r="10" fill="white"/>
-    <text x="20" y="25" text-anchor="middle" fill="#9ca3af"
-          font-size="13" font-weight="700" font-family="Inter,sans-serif">P</text>
+  html: `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="44" viewBox="0 0 36 44">
+    <path d="M18 0C8.059 0 0 8.059 0 18c0 12.6 18 26 18 26S36 30.6 36 18C36 8.059 27.941 0 18 0z"
+      fill="#9ca3af"/>
+    <circle cx="18" cy="18" r="9" fill="white"/>
+    <text x="18" y="23" text-anchor="middle" fill="#9ca3af"
+      font-size="12" font-weight="700" font-family="Inter,sans-serif">P</text>
   </svg>`,
-  iconSize: [40, 48],
-  iconAnchor: [20, 48],
-  popupAnchor: [0, -48],
+  iconSize: [36, 44],
+  iconAnchor: [18, 44],
 })
 
-const userLocationIcon = L.divIcon({
+export const userLocationIcon = L.divIcon({
   className: '',
-  html: `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-    <circle cx="16" cy="16" r="14" fill="#2563eb" opacity="0.2"/>
-    <circle cx="16" cy="16" r="8"  fill="#2563eb"/>
-    <circle cx="16" cy="16" r="4"  fill="white"/>
+  html: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
+    <circle cx="14" cy="14" r="12" fill="var(--brand, #9333ea)" opacity="0.2"/>
+    <circle cx="14" cy="14" r="7" fill="var(--brand, #9333ea)"/>
+    <circle cx="14" cy="14" r="3" fill="white"/>
   </svg>`,
-  iconSize: [32, 32],
-  iconAnchor: [16, 16],
+  iconSize: [28, 28],
+  iconAnchor: [14, 14],
 })
 
-// ── Internal component to expose map instance via onMapReady ─────────────────
+// ── Helper: emit map instance ─────────────────────────────
 
 function MapReadyEmitter({ onMapReady }) {
   const map = useMap()
-  useEffect(() => {
-    if (onMapReady) onMapReady(map)
-  }, [map, onMapReady])
+  useEffect(() => { onMapReady?.(map) }, [map])
   return null
 }
 
-// ── Main MapContainer ─────────────────────────────────────────────────────────
+// ── Factory helpers (for imperative use) ─────────────────
+
+export function createParkingMarker(map, position, isAvailable = true) {
+  const icon = isAvailable ? parkingAvailableIcon : parkingFullIcon
+  return L.marker([position.lat, position.lng], { icon }).addTo(map)
+}
+
+export function createUserMarker(map, position) {
+  return L.marker([position.lat, position.lng], {
+    icon: userLocationIcon,
+    zIndexOffset: 1000,
+  }).addTo(map)
+}
+
+// ── Main component ────────────────────────────────────────
 
 export default function MapContainer({
-  center = { lat: 20.5937, lng: 78.9629 },
+  center = { lat: 13.0827, lng: 80.2707 },
   zoom = 13,
   onMapReady,
   className = '',
@@ -82,10 +92,9 @@ export default function MapContainer({
       center={[center.lat, center.lng]}
       zoom={zoom}
       className={`w-full h-full ${className}`}
-      zoomControl={true}
     >
       <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         maxZoom={19}
       />
@@ -93,22 +102,4 @@ export default function MapContainer({
       {children}
     </LeafletMap>
   )
-}
-
-// ── Marker factory functions (API-compatible with ParkingMap.jsx) ─────────────
-
-/**
- * Creates a parking marker on a Leaflet map.
- * Returns a Leaflet marker instance with .remove() and .setLatLng() support.
- */
-export function createParkingMarker(map, position, isAvailable = true) {
-  const icon = isAvailable ? parkingAvailableIcon : parkingUnavailableIcon
-  return L.marker([position.lat, position.lng], { icon }).addTo(map)
-}
-
-/**
- * Creates the user's location marker.
- */
-export function createUserMarker(map, position) {
-  return L.marker([position.lat, position.lng], { icon: userLocationIcon, zIndexOffset: 1000 }).addTo(map)
 }

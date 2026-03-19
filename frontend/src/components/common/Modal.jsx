@@ -1,40 +1,31 @@
-import { useEffect } from 'react'
-import { X } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '../ui/dialog'
 
-export default function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-lg' }) {
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = ''
-    }
-    return () => { document.body.style.overflow = '' }
-  }, [isOpen])
-
-  if (!isOpen) return null
-
+/**
+ * Thin wrapper around shadcn Dialog for consistent modal styling.
+ *
+ * Props:
+ *   isOpen    — boolean
+ *   onClose   — function
+ *   title     — string (optional)
+ *   maxWidth  — tailwind max-width class e.g. 'max-w-lg' (default)
+ *   children
+ */
+export default function Modal({ isOpen, onClose, title, maxWidth = 'sm:max-w-lg', children }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      {/* Panel */}
-      <div className={`relative w-full ${maxWidth} bg-white rounded-2xl shadow-float max-h-[90vh] overflow-y-auto animate-slide-up`}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className={maxWidth}>
         {title && (
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-            <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-            <button
-              onClick={onClose}
-              className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <X size={18} />
-            </button>
-          </div>
+          <DialogHeader>
+            <DialogTitle>{title}</DialogTitle>
+          </DialogHeader>
         )}
-        <div className="p-6">{children}</div>
-      </div>
-    </div>
+        {children}
+      </DialogContent>
+    </Dialog>
   )
 }

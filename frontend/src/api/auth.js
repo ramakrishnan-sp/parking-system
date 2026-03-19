@@ -22,10 +22,11 @@ export const registerOwner = (formData) =>
 export const refreshToken = (refresh_token) =>
   api.post('/auth/refresh', { refresh_token })
 
-export const logout = (refresh_token) =>
+export const logoutUser = (refresh_token) =>
   api.post('/auth/logout', { refresh_token })
 
-export const getMe = () => api.get('/auth/me')
+export const getMe = () =>
+  api.get('/auth/me')
 
 export const changePassword = (data) =>
   api.post('/auth/change-password', data)

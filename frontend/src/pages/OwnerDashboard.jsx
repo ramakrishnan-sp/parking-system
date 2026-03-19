@@ -1,145 +1,185 @@
-import { useState, useEffect } from 'react'
-import { PlusCircle, Edit2, Trash2, ToggleLeft, ToggleRight, Building2 } from 'lucide-react'
-import toast from 'react-hot-toast'
-import { getMyParkingSpaces as getMySpaces, deleteParking, toggleParkingAvailability } from '../api/parking'
+import { useState, useEffect, useCallback } from 'react'
+import { Building2, PlusCircle, CalendarCheck, Star, DollarSign } from 'lucide-react'
+import { getMyParkingSpaces } from '../api/parking'
+import { getOwnerBookings } from '../api/booking'
+import ParkingSpaceCard from '../components/owner/ParkingSpaceCard'
 import ParkingForm from '../components/owner/ParkingForm'
-import Modal from '../components/common/Modal'
+import StatCard from '../components/common/StatCard'
+import EmptyState from '../components/common/EmptyState'
 import LoadingSpinner from '../components/common/LoadingSpinner'
-import { getOwnerBookings as getOwnerIncomingBookings } from '../api/booking'
-import BookingCard from '../components/booking/BookingCard'
+import { ParkingCardSkeleton, TableRowSkeleton, StatCardSkeleton } from '../components/common/Skeleton'
+import Modal from '../components/common/Modal'
+import StatusBadge from '../components/common/StatusBadge'
+import { cn } from '../lib/utils'
 import { format } from 'date-fns'
+import useAuthStore from '../store/authStore'
 
 const TABS = ['My Spaces', 'Incoming Bookings']
 
 export default function OwnerDashboard() {
+  const { user } = useAuthStore()
   const [tab, setTab] = useState('My Spaces')
-  const [spaces, setSpaces] = useState([])
-  const [bookings, setBookings] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [editing, setEditing] = useState(null)
+  const [spaces, setSpaces]     = useState([])
+  const [bookings, setBookings]  = useState([])
+  const [loading, setLoading]    = useState(true)
+  const [showForm, setShowForm]  = useState(false)
+  const [editing, setEditing]    = useState(null)
 
-  const loadData = async () => {
+  const loadAll = useCallback(async () => {
     setLoading(true)
     try {
-      const [s, b] = await Promise.all([getMySpaces(), getOwnerIncomingBookings()])
+      const [s, b] = await Promise.all([getMyParkingSpaces(), getOwnerBookings()])
       setSpaces(s.data)
       setBookings(b.data)
     } catch {} finally { setLoading(false) }
-  }
+  }, [])
 
-  useEffect(() => { loadData() }, [])
+  useEffect(() => { loadAll() }, [])
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this parking space?')) return
-    try { await deleteParking(id); toast.success('Deleted'); loadData() } catch {}
-  }
-
-  const handleToggle = async (id) => {
-    try { await toggleParkingAvailability(id); loadData() } catch {}
-  }
-
-  const statusBadge = (s) => {
-    const cls = s === 'approved' ? 'badge-green' : s === 'pending' ? 'badge-yellow' : 'badge-red'
-    return <span className={cls}>{s}</span>
-  }
+  const totalSpaces    = spaces.length
+  const activeBookings = bookings.filter((b) => ['confirmed', 'active'].includes(b.booking_status)).length
+  const totalEarnings  = bookings
+    .filter((b) => b.payment_status === 'paid')
+    .reduce((s, b) => s + parseFloat(b.owner_payout || 0), 0)
+  const avgRating = spaces.length
+    ? (spaces.reduce((s, sp) => s + parseFloat(sp.avg_rating || 0), 0) / spaces.length).toFixed(1)
+    : '—'
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <Building2 size={24} className="text-primary-600" />
-          <h1 className="text-2xl font-bold text-gray-900">Owner Dashboard</h1>
+    <div className="space-y-6">
+      {/* Welcome banner */}
+      <section className="relative overflow-hidden rounded-3xl bg-sidebar-gradient p-6 text-white">
+        <div className="pointer-events-none absolute -right-10 -top-10 size-36 rounded-full bg-white/10 blur-2xl" />
+        <h1 className="text-2xl font-semibold">Welcome back, {user?.full_name?.split(' ')[0]} 👋</h1>
+        <p className="text-white/80 text-sm mt-1">
+          Managing {totalSpaces} parking space{totalSpaces !== 1 ? 's' : ''}
+        </p>
+      </section>
+
+      {/* Stats */}
+      {loading ? (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => <StatCardSkeleton key={i} />)}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard icon={Building2}     label="Total Spaces"    value={totalSpaces}                     color="brand" />
+          <StatCard icon={CalendarCheck} label="Active Bookings" value={activeBookings}                  color="green" />
+          <StatCard icon={DollarSign}    label="Total Earnings"  value={`₹${totalEarnings.toFixed(0)}`} color="yellow" />
+          <StatCard icon={Star}          label="Avg Rating"      value={avgRating}                       color="blue" />
+        </div>
+      )}
+
+      {/* Tabs header */}
+      <div className="flex items-center justify-between">
+        <div className="flex gap-1 border-b border-border">
+          {TABS.map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={cn(
+                'px-4 pb-2 text-sm font-medium border-b-2 transition-colors',
+                tab === t
+                  ? 'border-brand text-brand'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {t}
+              {t === 'Incoming Bookings' && activeBookings > 0 && (
+                <span className="ml-1.5 bg-brand text-white text-xs rounded-full px-1.5 py-0.5">
+                  {activeBookings}
+                </span>
+              )}
+            </button>
+          ))}
         </div>
         {tab === 'My Spaces' && (
-          <button onClick={() => { setEditing(null); setShowForm(true) }} className="btn-primary flex items-center gap-2">
-            <PlusCircle size={16} /> Add Space
+          <button
+            onClick={() => { setEditing(null); setShowForm(true) }}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-brand text-white text-sm font-medium hover:opacity-90 active:scale-[0.98] transition-all"
+          >
+            <PlusCircle className="size-4" /> Add Space
           </button>
         )}
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 mb-6 border-b border-gray-200">
-        {TABS.map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`pb-2 px-1 text-sm font-medium border-b-2 transition-colors ${tab === t ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-          >
-            {t}
-            {t === 'Incoming Bookings' && bookings.filter(b => b.status === 'confirmed').length > 0 && (
-              <span className="ml-1.5 bg-primary-600 text-white text-xs rounded-full px-1.5 py-0.5">
-                {bookings.filter(b => b.status === 'confirmed').length}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {loading ? (
-        <LoadingSpinner text="Loading…" />
-      ) : tab === 'My Spaces' ? (
-        spaces.length === 0 ? (
-          <div className="text-center py-16 text-gray-400">
-            <Building2 size={40} className="mx-auto mb-3 opacity-30" />
-            <p className="mb-4">No parking spaces yet</p>
-            <button onClick={() => { setEditing(null); setShowForm(true) }} className="btn-primary">Add your first space</button>
+      {/* Content — My Spaces */}
+      {tab === 'My Spaces' && (
+        loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {Array.from({ length: 3 }).map((_, i) => <ParkingCardSkeleton key={i} />)}
           </div>
+        ) : spaces.length === 0 ? (
+          <EmptyState
+            icon={Building2}
+            title="No parking spaces yet"
+            message="Add your first parking space and start earning."
+            action={{ label: 'Add Space', onClick: () => setShowForm(true) }}
+          />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {spaces.map((ps) => (
-              <div key={ps.id} className="card">
-                {ps.photos?.[0] && (
-                  <img src={ps.photos[0].photo_url} alt="" className="w-full h-36 object-cover rounded-xl mb-4 -mx-0" />
-                )}
-                <div className="flex items-start justify-between mb-2">
-                  <div>
-                    <h3 className="font-semibold text-gray-900">{ps.title}</h3>
-                    <p className="text-sm text-gray-500">₹{ps.price_per_hour}/hr • {ps.total_slots} slots</p>
-                  </div>
-                  {statusBadge(ps.status)}
-                </div>
-                <p className="text-sm text-gray-500 mb-4 line-clamp-2">{ps.description}</p>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => handleToggle(ps.id)} className="text-gray-400 hover:text-primary-600 transition-colors">
-                      {ps.is_available ? <ToggleRight size={22} className="text-green-500" /> : <ToggleLeft size={22} />}
-                    </button>
-                    <span className="text-xs text-gray-500">{ps.is_available ? 'Open' : 'Closed'}</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => { setEditing(ps); setShowForm(true) }} className="btn-ghost text-xs py-1 px-2">
-                      <Edit2 size={13} />
-                    </button>
-                    <button onClick={() => handleDelete(ps.id)} className="btn-ghost text-xs py-1 px-2 text-red-500 hover:bg-red-50">
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <ParkingSpaceCard
+                key={ps.id}
+                space={ps}
+                onEdit={(ps) => { setEditing(ps); setShowForm(true) }}
+                onRefresh={loadAll}
+              />
             ))}
           </div>
         )
-      ) : (
-        <div className="space-y-4">
-          {bookings.length === 0 ? (
-            <div className="text-center py-16 text-gray-400">No incoming bookings</div>
-          ) : (
-            bookings.map((b) => <BookingCard key={b.id} booking={b} onRefresh={loadData} ownerView />)
-          )}
-        </div>
       )}
 
-      {/* Add/Edit Parking Form Modal */}
+      {/* Content — Incoming Bookings */}
+      {tab === 'Incoming Bookings' && (
+        loading ? (
+          <div className="rounded-2xl bg-card ring-1 ring-border shadow-card overflow-hidden p-0">
+            <table className="w-full"><tbody>
+              {Array.from({ length: 5 }).map((_, i) => <TableRowSkeleton key={i} cols={7} />)}
+            </tbody></table>
+          </div>
+        ) : bookings.length === 0 ? (
+          <EmptyState icon={CalendarCheck} title="No bookings yet" message="Bookings for your spaces will appear here." />
+        ) : (
+          <div className="rounded-2xl bg-card ring-1 ring-border shadow-card overflow-hidden p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px] text-sm">
+                <thead className="bg-muted text-muted-foreground text-xs uppercase tracking-wide">
+                  <tr>
+                    {['Ref', 'Space', 'Seeker', 'From', 'To', 'Amount', 'Status'].map((h) => (
+                      <th key={h} className="text-left px-4 py-3">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {bookings.map((b) => (
+                    <tr key={b.id} className="hover:bg-muted/40 transition-colors">
+                      <td className="px-4 py-3 font-mono text-xs">{b.id.slice(0,8).toUpperCase()}</td>
+                      <td className="px-4 py-3 font-medium truncate max-w-36">{b.parking_space?.title ?? '—'}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{b.user?.full_name ?? '—'}</td>
+                      <td className="px-4 py-3 text-muted-foreground text-xs">{format(new Date(b.start_time), 'dd MMM, h:mm a')}</td>
+                      <td className="px-4 py-3 text-muted-foreground text-xs">{format(new Date(b.end_time), 'dd MMM, h:mm a')}</td>
+                      <td className="px-4 py-3 font-medium text-brand">₹{b.total_amount}</td>
+                      <td className="px-4 py-3"><StatusBadge status={b.booking_status} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      )}
+
+      {/* Add/Edit Modal */}
       <Modal
         isOpen={showForm}
         onClose={() => setShowForm(false)}
-        title={editing ? 'Edit Parking Space' : 'Add Parking Space'}
-        maxWidth="max-w-2xl"
+        title={editing ? 'Edit Parking Space' : 'Add New Parking Space'}
+        maxWidth="sm:max-w-2xl"
       >
         <ParkingForm
-          initial={editing}
-          onSuccess={() => { setShowForm(false); loadData() }}
+          initialData={editing}
+          onSuccess={() => { setShowForm(false); loadAll() }}
           onCancel={() => setShowForm(false)}
         />
       </Modal>

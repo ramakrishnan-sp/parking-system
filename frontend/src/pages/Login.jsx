@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
-import { Eye, EyeOff, LogIn } from 'lucide-react'
-import toast from 'react-hot-toast'
+import { Eye, EyeOff, Car } from 'lucide-react'
+import { toast } from 'sonner'
 import { loginUser } from '../api/auth'
 import useAuthStore from '../store/authStore'
 
@@ -13,84 +13,125 @@ export default function Login() {
   const [showPwd, setShowPwd] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  const { register, handleSubmit, formState: { errors } } = useForm()
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm()
 
   const onSubmit = async (data) => {
     setLoading(true)
     try {
       const res = await loginUser(data)
-      login(res.data)
+      await login(res.data)
+
       toast.success('Welcome back!')
+
+      // Redirect to original page or role default
       const from = location.state?.from?.pathname
-      const role = res.data.user?.role
-      if (from) { navigate(from, { replace: true }); return }
-      if (role === 'admin')  navigate('/admin',  { replace: true })
-      else if (role === 'owner') navigate('/owner', { replace: true })
-      else navigate('/map', { replace: true })
+      const userType = res.data.user_type
+
+      if (from && from !== '/login') {
+        navigate(from, { replace: true })
+        return
+      }
+
+      if (userType === 'admin')       navigate('/admin',  { replace: true })
+      else if (userType === 'owner')  navigate('/owner',  { replace: true })
+      else                            navigate('/map',    { replace: true })
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Login failed')
-    } finally { setLoading(false) }
+      const msg = err.response?.data?.detail || 'Login failed. Check your credentials.'
+      toast.error(msg)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-primary-100 px-4">
-      <div className="w-full max-w-md">
-        <div className="card shadow-xl">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center">
-              <LogIn size={18} className="text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">Sign in to ParkEase</h1>
-              <p className="text-sm text-gray-500">Welcome back</p>
-            </div>
-          </div>
+    <div className="min-h-screen flex items-center justify-center bg-background px-4">
+      {/* Background decoration */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute -top-40 -right-40 size-80 rounded-full bg-brand/10 blur-3xl" />
+        <div className="absolute -bottom-40 -left-40 size-80 rounded-full bg-brand/10 blur-3xl" />
+      </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-            <div>
-              <label className="label">Email address</label>
+      <div className="relative w-full max-w-sm">
+        {/* Logo */}
+        <div className="flex items-center justify-center gap-2 mb-8">
+          <div className="size-10 rounded-xl bg-brand grid place-items-center">
+            <Car className="size-5 text-white" />
+          </div>
+          <span className="text-xl font-bold text-foreground">ParkEase</span>
+        </div>
+
+        {/* Card */}
+        <div className="rounded-2xl bg-card p-7 ring-1 ring-border shadow-card animate-slide-up">
+          <h1 className="text-2xl font-semibold text-foreground mb-1">Sign in</h1>
+          <p className="text-sm text-muted-foreground mb-6">
+            Welcome back. Enter your credentials.
+          </p>
+
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            {/* Email */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Email</label>
               <input
                 {...register('email', {
                   required: 'Email is required',
-                  pattern: { value: /\S+@\S+\.\S+/, message: 'Invalid email' }
+                  pattern: { value: /\S+@\S+\.\S+/, message: 'Invalid email address' },
                 })}
                 type="email"
-                className="input"
                 placeholder="you@example.com"
                 autoComplete="email"
+                className="h-10 w-full rounded-md bg-background ring-1 ring-border px-3 text-sm outline-none focus:ring-2 focus:ring-brand/50 transition-all"
               />
-              {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
+              {errors.email && (
+                <p className="text-xs text-destructive">{errors.email.message}</p>
+              )}
             </div>
 
-            <div>
-              <label className="label">Password</label>
+            {/* Password */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Password</label>
               <div className="relative">
                 <input
                   {...register('password', { required: 'Password is required' })}
                   type={showPwd ? 'text' : 'password'}
-                  className="input pr-10"
                   placeholder="••••••••"
                   autoComplete="current-password"
+                  className="h-10 w-full rounded-md bg-background ring-1 ring-border px-3 pr-10 text-sm outline-none focus:ring-2 focus:ring-brand/50 transition-all"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPwd(!showPwd)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
-                  {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+                  {showPwd ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                 </button>
               </div>
-              {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
+              {errors.password && (
+                <p className="text-xs text-destructive">{errors.password.message}</p>
+              )}
             </div>
 
-            <button type="submit" disabled={loading} className="btn-primary w-full">
+            {/* Submit */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="h-10 w-full rounded-md bg-brand text-white text-sm font-medium hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {loading && (
+                <span className="size-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+              )}
               {loading ? 'Signing in…' : 'Sign in'}
             </button>
           </form>
 
-          <p className="text-center text-sm text-gray-500 mt-6">
-            Don't have an account?{' '}
-            <Link to="/register" className="text-primary-600 font-medium hover:underline">Sign up</Link>
+          <p className="mt-5 text-sm text-muted-foreground text-center">
+            Don&apos;t have an account?{' '}
+            <Link to="/register" className="text-brand font-medium hover:underline">
+              Sign up
+            </Link>
           </p>
         </div>
       </div>

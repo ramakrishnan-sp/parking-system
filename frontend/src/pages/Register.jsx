@@ -1,265 +1,439 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
-import { Eye, EyeOff, Car, Building2 } from 'lucide-react'
-import toast from 'react-hot-toast'
-import { registerSeeker, registerOwner, sendOTP as sendOtp, verifyOTP as verifyOtp } from '../api/auth'
-import useAuthStore from '../store/authStore'
+import { Eye, EyeOff, Car, Building2, CheckCircle } from 'lucide-react'
+import { toast } from 'sonner'
+import { registerSeeker, registerOwner, sendOTP, verifyOTP } from '../api/auth'
 
-const TABS = [
-  { key: 'seeker', label: 'Seeker', icon: Car,       desc: 'I need to park' },
-  { key: 'owner',  label: 'Owner',  icon: Building2, desc: 'I own a space' },
-]
-
-const VEHICLE_TYPES = ['car', 'bike', 'ev', 'suv', 'van', 'truck']
-const PROPERTY_TYPES = ['house', 'apartment', 'shop', 'office', 'basement', 'open_ground', 'covered']
+const VEHICLE_TYPES = ['car', 'bike', 'ev']
+const PROPERTY_TYPES = ['house', 'apartment', 'shop', 'office']
 
 export default function Register() {
   const navigate = useNavigate()
-  const { login } = useAuthStore()
   const [tab, setTab] = useState('seeker')
   const [loading, setLoading] = useState(false)
   const [showPwd, setShowPwd] = useState(false)
 
   // OTP state
-  const [phone, setPhone] = useState('')
   const [otpSent, setOtpSent] = useState(false)
-  const [otp, setOtp] = useState('')
+  const [otpValue, setOtpValue] = useState('')
   const [otpVerified, setOtpVerified] = useState(false)
   const [otpLoading, setOtpLoading] = useState(false)
 
-  const { register, handleSubmit, getValues, reset, formState: { errors } } = useForm()
+  const {
+    register,
+    handleSubmit,
+    getValues,
+    reset,
+    formState: { errors },
+  } = useForm()
 
   const handleSendOtp = async () => {
-    const ph = getValues('phone') || phone
-    if (!/^\d{10}$/.test(ph)) { toast.error('Enter a valid 10-digit phone number'); return }
+    const phone = getValues('phone')
+    if (!phone || !/^\d{10}$/.test(phone)) {
+      toast.error('Enter a valid 10-digit mobile number')
+      return
+    }
     setOtpLoading(true)
     try {
-      const res = await sendOtp(ph)
-      setPhone(ph)
+      const res = await sendOTP(phone)
       setOtpSent(true)
       if (res.data?.otp) {
-        toast.success(`OTP sent! Your OTP is: ${res.data.otp}`, { duration: 15000 })
+        toast.success(`OTP sent! Your OTP is: ${res.data.otp}`, { duration: 20000 })
       } else {
-        toast.success('OTP sent to your phone!')
+        toast.success('OTP sent to your mobile number')
       }
     } catch {} finally { setOtpLoading(false) }
   }
 
   const handleVerifyOtp = async () => {
+    const phone = getValues('phone')
     setOtpLoading(true)
     try {
-      await verifyOtp(phone, otp)
+      await verifyOTP(phone, otpValue)
       setOtpVerified(true)
-      toast.success('Phone verified!')
+      toast.success('Phone number verified!')
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Invalid OTP')
     } finally { setOtpLoading(false) }
   }
 
   const onSubmit = async (data) => {
-    if (!otpVerified) { toast.error('Please verify your phone number first'); return }
+    if (!otpVerified) {
+      toast.error('Please verify your phone number first')
+      return
+    }
+
     setLoading(true)
     try {
       const fd = new FormData()
-      Object.entries(data).forEach(([k, v]) => {
-        if (v instanceof FileList) { if (v[0]) fd.append(k, v[0]) }
-        else if (v !== undefined && v !== '') fd.append(k, v)
+
+      Object.entries(data).forEach(([key, value]) => {
+        if (value instanceof FileList) {
+          if (value[0]) fd.append(key, value[0])
+        } else if (value !== undefined && value !== '') {
+          fd.append(key, value)
+        }
       })
-      fd.set('phone', phone)
-      const res = tab === 'seeker' ? await registerSeeker(fd) : await registerOwner(fd)
-      toast.success('Account created! Please log in.')
+
+      fd.set('phone', `+91${getValues('phone')}`)
+
+      if (tab === 'seeker') {
+        await registerSeeker(fd)
+      } else {
+        await registerOwner(fd)
+      }
+
+      toast.success('Account created! Please sign in.')
       navigate('/login')
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Registration failed. Please try again.')
     } finally { setLoading(false) }
   }
 
-  const switchTab = (t) => { setTab(t); reset(); setOtpSent(false); setOtpVerified(false); setPhone('') }
+  const switchTab = (t) => {
+    setTab(t)
+    reset()
+    setOtpSent(false)
+    setOtpVerified(false)
+    setOtpValue('')
+  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-primary-100 px-4 py-12">
-      <div className="w-full max-w-lg">
-        <div className="card shadow-xl">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Create your account</h1>
-          <p className="text-sm text-gray-500 mb-6">Join ParkEase today</p>
+    <div className="min-h-screen bg-background flex">
+      {/* Left decorative panel (desktop only) */}
+      <div className="hidden lg:flex lg:w-5/12 bg-sidebar-gradient flex-col items-center justify-center p-12 text-white">
+        <div className="size-16 rounded-2xl bg-white/20 grid place-items-center mb-6">
+          <Car className="size-8" />
+        </div>
+        <h2 className="text-3xl font-bold mb-3 text-center">Join ParkEase</h2>
+        <p className="text-white/80 text-center leading-relaxed">
+          Find nearby parking in seconds, or earn by listing your unused parking space.
+        </p>
+        <div className="mt-10 grid grid-cols-2 gap-4 w-full max-w-xs">
+          {[
+            ['2,400+', 'Parking spaces'],
+            ['15,000+', 'Happy drivers'],
+            ['₹12M+', 'Total saved'],
+            ['4.8★', 'Average rating'],
+          ].map(([val, lbl]) => (
+            <div key={lbl} className="rounded-xl bg-white/10 p-3 text-center">
+              <p className="font-bold text-lg">{val}</p>
+              <p className="text-xs text-white/70 mt-0.5">{lbl}</p>
+            </div>
+          ))}
+        </div>
+      </div>
 
-          {/* Tab switcher */}
-          <div className="flex bg-gray-100 rounded-xl p-1 mb-8">
-            {TABS.map(({ key, label, icon: Icon }) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => switchTab(key)}
-                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all ${tab === key ? 'bg-white shadow text-primary-700' : 'text-gray-500 hover:text-gray-700'}`}
-              >
-                <Icon size={15} />{label}
-              </button>
-            ))}
+      {/* Right: Form */}
+      <div className="flex-1 flex items-center justify-center px-4 py-10 overflow-auto">
+        <div className="w-full max-w-md">
+          {/* Logo (mobile) */}
+          <div className="flex items-center gap-2 mb-6 lg:hidden">
+            <div className="size-9 rounded-xl bg-brand grid place-items-center">
+              <Car className="size-5 text-white" />
+            </div>
+            <span className="text-lg font-bold">ParkEase</span>
           </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+          <div className="rounded-2xl bg-card p-6 ring-1 ring-border shadow-card animate-slide-up">
+            <h1 className="text-2xl font-semibold mb-1">Create account</h1>
+            <p className="text-sm text-muted-foreground mb-5">
+              Join and start parking smarter.
+            </p>
 
-            {/* ── Common fields ── */}
-            <div>
-              <label className="label">Full name</label>
-              <input {...register('full_name', { required: true })} className="input" placeholder="John Doe" />
-              {errors.full_name && <p className="text-red-500 text-xs mt-1">Required</p>}
-            </div>
-
-            <div>
-              <label className="label">Email</label>
-              <input {...register('email', { required: true, pattern: /\S+@\S+\.\S+/ })} type="email" className="input" placeholder="you@example.com" />
-              {errors.email && <p className="text-red-500 text-xs mt-1">Valid email required</p>}
-            </div>
-
-            <div>
-              <label className="label">Password</label>
-              <div className="relative">
-                <input
-                  {...register('password', { required: true, minLength: 8 })}
-                  type={showPwd ? 'text' : 'password'}
-                  className="input pr-10"
-                  placeholder="Min. 8 characters"
-                />
-                <button type="button" onClick={() => setShowPwd(!showPwd)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-                  {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+            {/* Tab switcher */}
+            <div className="flex bg-muted rounded-xl p-1 mb-6">
+              {[
+                { key: 'seeker', label: 'Seeker', icon: Car },
+                { key: 'owner',  label: 'Owner',  icon: Building2 },
+              ].map(({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => switchTab(key)}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${
+                    tab === key
+                      ? 'bg-card shadow text-brand'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Icon className="size-4" />{label}
                 </button>
-              </div>
-              {errors.password && <p className="text-red-500 text-xs mt-1">Min. 8 characters required</p>}
+              ))}
             </div>
 
-            {/* Phone + OTP */}
-            <div>
-              <label className="label">Mobile number</label>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">+91</span>
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+
+              {/* Full name */}
+              <Field label="Full name" error={errors.full_name?.message}>
+                <input
+                  {...register('full_name', { required: 'Full name is required' })}
+                  className={inputCls(errors.full_name)}
+                  placeholder="Jane Doe"
+                />
+              </Field>
+
+              {/* Email */}
+              <Field label="Email" error={errors.email?.message}>
+                <input
+                  {...register('email', {
+                    required: 'Email is required',
+                    pattern: { value: /\S+@\S+\.\S+/, message: 'Invalid email' },
+                  })}
+                  type="email"
+                  className={inputCls(errors.email)}
+                  placeholder="you@example.com"
+                />
+              </Field>
+
+              {/* Password */}
+              <Field label="Password" error={errors.password?.message}>
+                <div className="relative">
                   <input
-                    {...register('phone', { required: true })}
-                    type="tel"
-                    className="input pl-12"
-                    placeholder="10-digit number"
-                    maxLength={10}
-                    onChange={(e) => setPhone(e.target.value)}
-                    disabled={otpVerified}
+                    {...register('password', {
+                      required: 'Password is required',
+                      minLength: { value: 8, message: 'Min 8 characters' },
+                    })}
+                    type={showPwd ? 'text' : 'password'}
+                    className={`${inputCls(errors.password)} pr-10`}
+                    placeholder="Min. 8 characters"
                   />
-                </div>
-                {!otpVerified && (
-                  <button type="button" onClick={handleSendOtp} disabled={otpLoading} className="btn-outline whitespace-nowrap">
-                    {otpLoading ? '…' : otpSent ? 'Resend' : 'Send OTP'}
+                  <button
+                    type="button"
+                    onClick={() => setShowPwd(!showPwd)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showPwd ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                   </button>
-                )}
-                {otpVerified && <span className="flex items-center text-green-600 text-sm font-medium">Verified ✓</span>}
-              </div>
-            </div>
+                </div>
+              </Field>
 
-            {otpSent && !otpVerified && (
-              <div>
-                <label className="label">Enter OTP</label>
+              {/* Phone + OTP */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Mobile number</label>
                 <div className="flex gap-2">
-                  <input value={otp} onChange={(e) => setOtp(e.target.value)} className="input" placeholder="6-digit OTP" maxLength={6} />
-                  <button type="button" onClick={handleVerifyOtp} disabled={otpLoading || otp.length < 6} className="btn-primary whitespace-nowrap">
-                    Verify
-                  </button>
+                  <div className="relative flex-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                      +91
+                    </span>
+                    <input
+                      {...register('phone', { required: 'Phone is required', pattern: { value: /^\d{10}$/, message: '10 digits required' } })}
+                      type="tel"
+                      maxLength={10}
+                      disabled={otpVerified}
+                      className={`${inputCls(errors.phone)} pl-12`}
+                      placeholder="10-digit number"
+                    />
+                  </div>
+                  {!otpVerified && (
+                    <button
+                      type="button"
+                      onClick={handleSendOtp}
+                      disabled={otpLoading}
+                      className="px-3 py-2 rounded-md border border-border text-sm font-medium hover:bg-muted transition-colors disabled:opacity-50 whitespace-nowrap"
+                    >
+                      {otpLoading ? '…' : otpSent ? 'Resend' : 'Send OTP'}
+                    </button>
+                  )}
+                  {otpVerified && (
+                    <span className="flex items-center gap-1 text-sm text-green-600 font-medium px-2">
+                      <CheckCircle className="size-4" /> Verified
+                    </span>
+                  )}
                 </div>
+                {errors.phone && <p className="text-xs text-destructive">{errors.phone.message}</p>}
               </div>
-            )}
 
-            <div>
-              <label className="label">Residential address</label>
-              <input {...register('residential_address', { required: true })} className="input" placeholder="Your home address" />
-              {errors.residential_address && <p className="text-red-500 text-xs mt-1">Required</p>}
-            </div>
-
-            <div>
-              <label className="label">Aadhaar number</label>
-              <input {...register('aadhaar_number', { required: true, pattern: /^\d{12}$/ })} className="input" placeholder="12-digit Aadhaar" maxLength={12} />
-              {errors.aadhaar_number && <p className="text-red-500 text-xs mt-1">12-digit Aadhaar required</p>}
-            </div>
-
-            <div>
-              <label className="label">Aadhaar proof (image / PDF)</label>
-              <input {...register('aadhaar_proof', { required: true })} type="file" accept="image/*,application/pdf" className="input text-sm" />
-              {errors.aadhaar_proof && <p className="text-red-500 text-xs mt-1">Required</p>}
-            </div>
-
-            {/* ── Seeker-only fields ── */}
-            {tab === 'seeker' && (
-              <>
-                <div>
-                  <label className="label">Driving license number</label>
-                  <input {...register('driving_license_number', { required: true })} className="input" placeholder="e.g. MH0120210012345" />
-                  {errors.driving_license_number && <p className="text-red-500 text-xs mt-1">Required</p>}
-                </div>
-
-                <div>
-                  <label className="label">License proof (image / PDF)</label>
-                  <input {...register('license_proof', { required: true })} type="file" accept="image/*,application/pdf" className="input text-sm" />
-                  {errors.license_proof && <p className="text-red-500 text-xs mt-1">Required</p>}
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="label">Vehicle number</label>
-                    <input {...register('vehicle_number', { required: true })} className="input" placeholder="e.g. MH12AB1234" />
-                    {errors.vehicle_number && <p className="text-red-500 text-xs mt-1">Required</p>}
+              {/* OTP input */}
+              {otpSent && !otpVerified && (
+                <div className="space-y-1.5 animate-slide-up">
+                  <label className="text-sm font-medium">Enter OTP</label>
+                  <div className="flex gap-2">
+                    <input
+                      value={otpValue}
+                      onChange={(e) => setOtpValue(e.target.value)}
+                      maxLength={6}
+                      className="flex-1 h-10 rounded-md bg-background ring-1 ring-border px-3 text-sm outline-none focus:ring-2 focus:ring-brand/50 tracking-widest text-center font-mono"
+                      placeholder="• • • • • •"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleVerifyOtp}
+                      disabled={otpLoading || otpValue.length < 6}
+                      className="px-4 py-2 rounded-md bg-brand text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 whitespace-nowrap"
+                    >
+                      Verify
+                    </button>
                   </div>
-                  <div>
-                    <label className="label">Vehicle type</label>
-                    <select {...register('vehicle_type', { required: true })} className="input">
+                </div>
+              )}
+
+              {/* Residential address */}
+              <Field label="Residential address" error={errors.residential_address?.message}>
+                <input
+                  {...register('residential_address', { required: 'Address is required' })}
+                  className={inputCls(errors.residential_address)}
+                  placeholder="Your home address"
+                />
+              </Field>
+
+              {/* Aadhaar */}
+              <Field label="Aadhaar number" error={errors.aadhaar_number?.message}>
+                <input
+                  {...register('aadhaar_number', {
+                    required: 'Aadhaar is required',
+                    pattern: { value: /^\d{12}$/, message: '12-digit Aadhaar required' },
+                  })}
+                  maxLength={12}
+                  className={inputCls(errors.aadhaar_number)}
+                  placeholder="12-digit Aadhaar"
+                />
+              </Field>
+
+              {/* Aadhaar proof */}
+              <Field label="Aadhaar proof (image / PDF)" error={errors.aadhaar_proof?.message}>
+                <input
+                  {...register('aadhaar_proof', { required: 'Required' })}
+                  type="file"
+                  accept="image/*,application/pdf"
+                  className="h-10 w-full rounded-md bg-background ring-1 ring-border px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-brand/10 file:text-brand file:text-xs file:font-medium"
+                />
+              </Field>
+
+              {/* ── Seeker-only fields ── */}
+              {tab === 'seeker' && (
+                <>
+                  <Field label="Driving license number" error={errors.driving_license_number?.message}>
+                    <input
+                      {...register('driving_license_number', { required: 'Required' })}
+                      className={inputCls(errors.driving_license_number)}
+                      placeholder="e.g. TN0120210012345"
+                    />
+                  </Field>
+
+                  <Field label="License proof (image / PDF)" error={errors.license_proof?.message}>
+                    <input
+                      {...register('license_proof', { required: 'Required' })}
+                      type="file"
+                      accept="image/*,application/pdf"
+                      className="h-10 w-full rounded-md bg-background ring-1 ring-border px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-brand/10 file:text-brand file:text-xs file:font-medium"
+                    />
+                  </Field>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Vehicle number" error={errors.vehicle_number?.message}>
+                      <input
+                        {...register('vehicle_number', { required: 'Required' })}
+                        className={inputCls(errors.vehicle_number)}
+                        placeholder="TN12AB1234"
+                      />
+                    </Field>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium">Vehicle type</label>
+                      <select
+                        {...register('vehicle_type', { required: 'Required' })}
+                        className="h-10 w-full rounded-md bg-background ring-1 ring-border px-3 text-sm outline-none"
+                      >
+                        <option value="">Select…</option>
+                        {VEHICLE_TYPES.map((v) => (
+                          <option key={v} value={v}>{v.toUpperCase()}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* ── Owner-only fields ── */}
+              {tab === 'owner' && (
+                <>
+                  <Field label="Property address" error={errors.property_address?.message}>
+                    <input
+                      {...register('property_address', { required: 'Required' })}
+                      className={inputCls(errors.property_address)}
+                      placeholder="Address of your parking space"
+                    />
+                  </Field>
+
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">Property type</label>
+                    <select
+                      {...register('property_type', { required: 'Required' })}
+                      className="h-10 w-full rounded-md bg-background ring-1 ring-border px-3 text-sm outline-none"
+                    >
                       <option value="">Select…</option>
-                      {VEHICLE_TYPES.map(v => <option key={v} value={v}>{v.toUpperCase()}</option>)}
+                      {PROPERTY_TYPES.map((p) => (
+                        <option key={p} value={p}>
+                          {p.charAt(0).toUpperCase() + p.slice(1)}
+                        </option>
+                      ))}
                     </select>
-                    {errors.vehicle_type && <p className="text-red-500 text-xs mt-1">Required</p>}
                   </div>
-                </div>
-              </>
-            )}
 
-            {/* ── Owner-only fields ── */}
-            {tab === 'owner' && (
-              <>
-                <div>
-                  <label className="label">Property address</label>
-                  <input {...register('property_address', { required: true })} className="input" placeholder="Address of the parking property" />
-                  {errors.property_address && <p className="text-red-500 text-xs mt-1">Required</p>}
-                </div>
+                  <Field label="Govt. ID proof (image / PDF)" error={errors.govt_id_proof?.message}>
+                    <input
+                      {...register('govt_id_proof', { required: 'Required' })}
+                      type="file"
+                      accept="image/*,application/pdf"
+                      className="h-10 w-full rounded-md bg-background ring-1 ring-border px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-brand/10 file:text-brand file:text-xs file:font-medium"
+                    />
+                  </Field>
+                </>
+              )}
 
-                <div>
-                  <label className="label">Property type</label>
-                  <select {...register('property_type', { required: true })} className="input">
-                    <option value="">Select…</option>
-                    {PROPERTY_TYPES.map(p => <option key={p} value={p}>{p.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}</option>)}
-                  </select>
-                  {errors.property_type && <p className="text-red-500 text-xs mt-1">Required</p>}
-                </div>
+              {/* Profile photo (optional) */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-muted-foreground">
+                  Profile photo <span className="text-xs">(optional)</span>
+                </label>
+                <input
+                  {...register('profile_photo')}
+                  type="file"
+                  accept="image/*"
+                  className="h-10 w-full rounded-md bg-background ring-1 ring-border px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-muted file:text-xs file:font-medium"
+                />
+              </div>
 
-                <div>
-                  <label className="label">Govt. ID proof (image / PDF)</label>
-                  <input {...register('govt_id_proof', { required: true })} type="file" accept="image/*,application/pdf" className="input text-sm" />
-                  {errors.govt_id_proof && <p className="text-red-500 text-xs mt-1">Required</p>}
-                </div>
-              </>
-            )}
+              {/* Submit */}
+              <button
+                type="submit"
+                disabled={loading}
+                className="h-11 w-full rounded-md bg-brand text-white text-sm font-medium hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2 mt-2"
+              >
+                {loading && (
+                  <span className="size-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                )}
+                {loading ? 'Creating account…' : 'Create account'}
+              </button>
+            </form>
 
-            {/* Profile photo */}
-            <div>
-              <label className="label">Profile photo (optional)</label>
-              <input {...register('profile_photo')} type="file" accept="image/*" className="input text-sm" />
-            </div>
-
-            <button type="submit" disabled={loading} className="btn-primary w-full py-3">
-              {loading ? 'Creating account…' : 'Create account'}
-            </button>
-          </form>
-
-          <p className="text-center text-sm text-gray-500 mt-6">
-            Already have an account?{' '}
-            <Link to="/login" className="text-primary-600 font-medium hover:underline">Sign in</Link>
-          </p>
+            <p className="mt-5 text-sm text-muted-foreground text-center">
+              Already have an account?{' '}
+              <Link to="/login" className="text-brand font-medium hover:underline">
+                Sign in
+              </Link>
+            </p>
+          </div>
         </div>
       </div>
     </div>
   )
+}
+
+// ── Helper sub-components ─────────────────────────────────
+function Field({ label, error, children }) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-sm font-medium">{label}</label>
+      {children}
+      {error && <p className="text-xs text-destructive">{error}</p>}
+    </div>
+  )
+}
+
+function inputCls(error) {
+  return `h-10 w-full rounded-md bg-background ring-1 ${
+    error ? 'ring-destructive' : 'ring-border'
+  } px-3 text-sm outline-none focus:ring-2 focus:ring-brand/50 transition-all`
 }

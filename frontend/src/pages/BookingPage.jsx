@@ -1,8 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { CalendarCheck, ReceiptText, Clock, CheckCircle } from 'lucide-react'
 import { getMyBookings } from '../api/booking'
 import BookingCard from '../components/booking/BookingCard'
-import LoadingSpinner from '../components/common/LoadingSpinner'
-import { CalendarCheck } from 'lucide-react'
+import EmptyState from '../components/common/EmptyState'
+import { StatCardSkeleton, BookingCardSkeleton } from '../components/common/Skeleton'
+import StatCard from '../components/common/StatCard'
+import { cn } from '../lib/utils'
 
 const STATUS_TABS = [
   { key: 'all',       label: 'All' },
@@ -18,53 +21,90 @@ export default function BookingPage() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('all')
 
-  const loadBookings = async () => {
+  const load = useCallback(async () => {
     setLoading(true)
     try {
       const res = await getMyBookings()
       setBookings(res.data)
     } catch {} finally { setLoading(false) }
-  }
+  }, [])
 
-  useEffect(() => { loadBookings() }, [])
+  useEffect(() => { load() }, [])
 
-  const filtered = tab === 'all' ? bookings : bookings.filter((b) => b.status === tab)
+  const filtered = tab === 'all'
+    ? bookings
+    : bookings.filter((b) => b.booking_status === tab)
+
+  const total     = bookings.length
+  const active    = bookings.filter((b) => b.booking_status === 'active').length
+  const completed = bookings.filter((b) => b.booking_status === 'completed').length
+  const spent     = bookings
+    .filter((b) => b.payment_status === 'paid')
+    .reduce((s, b) => s + parseFloat(b.total_amount || 0), 0)
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8">
-      <div className="flex items-center gap-3 mb-6">
-        <CalendarCheck size={24} className="text-primary-600" />
-        <h1 className="text-2xl font-bold text-gray-900">My Bookings</h1>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <CalendarCheck className="size-6 text-brand" />
+        <h1 className="text-2xl font-bold text-foreground">My Bookings</h1>
       </div>
 
-      {/* Status tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-2 mb-6">
+      {/* Stats */}
+      {loading ? (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => <StatCardSkeleton key={i} />)}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard icon={CalendarCheck} label="Total Bookings" value={total}                     color="brand" />
+          <StatCard icon={Clock}         label="Active"         value={active}                    color="green" />
+          <StatCard icon={CheckCircle}   label="Completed"      value={completed}                 color="blue" />
+          <StatCard icon={ReceiptText}   label="Total Spent"    value={`₹${spent.toFixed(0)}`}   color="yellow" />
+        </div>
+      )}
+
+      {/* Filter tabs */}
+      <div className="flex gap-2 overflow-x-auto pb-1">
         {STATUS_TABS.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+            className={cn(
+              'whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-medium transition-colors shrink-0',
               tab === t.key
-                ? 'bg-primary-600 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
+                ? 'bg-brand text-white'
+                : 'bg-muted text-muted-foreground hover:bg-muted/80'
+            )}
           >
             {t.label}
+            {t.key !== 'all' && (
+              <span className="ml-1.5 text-xs opacity-70">
+                ({bookings.filter((b) => b.booking_status === t.key).length})
+              </span>
+            )}
           </button>
         ))}
       </div>
 
+      {/* Content */}
       {loading ? (
-        <LoadingSpinner text="Loading bookings…" />
-      ) : filtered.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">
-          <CalendarCheck size={40} className="mx-auto mb-3 opacity-30" />
-          <p>No bookings found</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => <BookingCardSkeleton key={i} />)}
         </div>
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon={CalendarCheck}
+          title="No bookings yet"
+          message={tab === 'all'
+            ? "You haven't made any bookings yet. Find a parking spot to get started."
+            : `No ${tab} bookings found.`}
+          action={tab === 'all' ? { label: 'Find Parking', href: '/map' } : undefined}
+        />
       ) : (
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {filtered.map((b) => (
-            <BookingCard key={b.id} booking={b} onRefresh={loadBookings} />
+            <BookingCard key={b.id} booking={b} onUpdate={load} />
           ))}
         </div>
       )}

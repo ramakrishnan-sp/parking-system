@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { CheckCircle, XCircle, Eye, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 import { approveParking, removeParking } from '../../api/admin'
 import Modal from '../common/Modal'
 

@@ -1,8 +1,16 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
+import path from 'path'
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+      'src': path.resolve(__dirname, './src'),
+    },
+  },
   server: {
     port: 3000,
     proxy: {
@@ -22,11 +30,10 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          react:  ['react', 'react-dom', 'react-router-dom'],
-          maps:   ['@googlemaps/js-api-loader'],
-          stripe: ['@stripe/react-stripe-js', '@stripe/stripe-js'],
+          react: ['react', 'react-dom', 'react-router-dom'],
         },
       },
     },
   },
 })
+

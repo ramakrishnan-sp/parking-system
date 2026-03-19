@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { CheckCircle, XCircle, Search, ChevronDown } from 'lucide-react'
 import { format } from 'date-fns'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 import {
   toggleUserActive,
   approveOwner,
