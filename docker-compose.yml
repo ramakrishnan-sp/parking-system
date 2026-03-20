@@ -42,6 +42,10 @@ services:
     restart: always
     env_file:
       - ./backend/.env
+    environment:
+      # Override host-based URLs for Docker internal networking
+      DATABASE_URL: postgresql://${POSTGRES_USER:-parking_user}:${POSTGRES_PASSWORD:-parking_pass}@db:5432/${POSTGRES_DB:-parking_db}
+      REDIS_URL: redis://redis:6379/0
     ports:
       - "8000:8000"
     volumes:
