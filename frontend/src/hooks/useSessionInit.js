@@ -1,64 +1,74 @@
-import { useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import axios from 'axios'
-import useAuthStore from '../store/authStore'
+import { useEffect, useRef } from 'react';
+import { useAuthStore } from '../store/authStore';
+import { getMe, logoutUser } from '../api/auth';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-
-/**
- * Runs once on app boot.
- * If we have tokens but the session flag is missing (new browser session / tab),
- * attempt a silent token refresh. If it fails, force logout.
- * Also listens for the force-logout event fired by the Axios interceptor.
- */
-export function useSessionInit() {
-  const { accessToken, updateTokens, logout, refreshUser } = useAuthStore()
-  const navigate = useNavigate()
+export const useSessionInit = () => {
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const refreshToken = useAuthStore((s) => s.refreshToken);
+  const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
+  const refreshUser = useAuthStore((s) => s.refreshUser);
+  const setLoading = useAuthStore((s) => s.setLoading);
+  const navigate = useNavigate();
+  const lastInitializedTokenRef = useRef(null);
 
   useEffect(() => {
-    const sessionActive = sessionStorage.getItem('parkease_session_active')
+    let disposed = false;
 
-    if (accessToken && !sessionActive) {
-      // New session: try to refresh silently
-      const rt = localStorage.getItem('parkease_refresh_token')
-      if (!rt) {
-        logout()
-        return
+    const initSession = async () => {
+      if (!accessToken) {
+        lastInitializedTokenRef.current = null;
+        return;
       }
 
-      axios
-        .post(`${API_URL}/api/v1/auth/refresh`, { refresh_token: rt })
-        .then(({ data }) => {
-          updateTokens(data.access_token, data.refresh_token)
-          sessionStorage.setItem('parkease_session_active', '1')
-          refreshUser()
-        })
-        .catch(() => {
-          logout()
-          navigate('/login', { replace: true })
-        })
-    } else if (accessToken && sessionActive) {
-      // Existing session: just re-fetch user to ensure it's fresh
-      refreshUser()
-    }
+      // If user is already in state (e.g. right after login), don't refetch on every token change.
+      if (user) {
+        lastInitializedTokenRef.current = accessToken;
+        return;
+      }
 
-    // Listen for force-logout events from axios interceptor
-    const handleForceLogout = () => {
-      logout()
-      navigate('/login', { replace: true })
-    }
+      // In dev StrictMode/effect re-runs, avoid re-initializing endlessly.
+      if (lastInitializedTokenRef.current === accessToken) return;
+      lastInitializedTokenRef.current = accessToken;
 
-    // Listen for token refresh events from axios interceptor
+      setLoading(true);
+      try {
+        const { data } = await getMe();
+        if (!disposed) refreshUser(data);
+      } catch (error) {
+        // Handled by interceptor or force-logout
+      } finally {
+        if (!disposed) setLoading(false);
+      }
+    };
+    initSession();
+
+    const handleForceLogout = async () => {
+      if (refreshToken) {
+        try {
+          await logoutUser({ refresh_token: refreshToken });
+        } catch (e) {
+          // Ignore
+        }
+      }
+      logout();
+      toast.error('Session expired. Please log in again.');
+      navigate('/login');
+    };
+
     const handleTokenRefreshed = (e) => {
-      updateTokens(e.detail.access_token, e.detail.refresh_token)
-    }
+      // Tokens updated in store via interceptor, we could refetch user if needed
+    };
 
-    window.addEventListener('parkease:force-logout', handleForceLogout)
-    window.addEventListener('parkease:token-refreshed', handleTokenRefreshed)
+    window.addEventListener('force-logout', handleForceLogout);
+    window.addEventListener('token-refreshed', handleTokenRefreshed);
 
     return () => {
-      window.removeEventListener('parkease:force-logout', handleForceLogout)
-      window.removeEventListener('parkease:token-refreshed', handleTokenRefreshed)
-    }
-  }, []) // Intentionally empty — runs only once on mount
-}
+      disposed = true;
+      window.removeEventListener('force-logout', handleForceLogout);
+      window.removeEventListener('token-refreshed', handleTokenRefreshed);
+    };
+  }, [accessToken, refreshToken, user, logout, refreshUser, setLoading, navigate]);
+};

@@ -1,15 +1,14 @@
-import api from './axios'
+import { api } from './axios';
 
-export const getAdminStats        = ()        => api.get('/admin/stats')
-export const listUsers            = (params)  => api.get('/admin/users', { params })
-export const toggleUserActive     = (id)      => api.patch(`/admin/users/${id}/toggle-active`)
-export const getPendingOwners     = ()        => api.get('/admin/owners/pending')
-export const approveOwner         = (id)      => api.post(`/admin/owners/${id}/approve`)
-export const rejectOwner          = (id, reason) => api.post(`/admin/owners/${id}/reject`, null, { params: { reason } })
-export const getPendingParking    = ()        => api.get('/admin/parking/pending')
-export const approveParking       = (id)      => api.post(`/admin/parking/${id}/approve`)
-export const removeParking        = (id)      => api.delete(`/admin/parking/${id}`)
-export const getAllBookings        = (params)  => api.get('/admin/bookings', { params })
-export const getRevenueAnalytics  = ()        => api.get('/admin/analytics/revenue')
-export const getBookingsByPurpose = ()        => api.get('/admin/analytics/bookings-by-purpose')
-export const getTopParking        = ()        => api.get('/admin/analytics/top-parking')
+export const getAdminStats = () => api.get('/admin/stats');
+export const listUsers = () => api.get('/admin/users');
+export const toggleUserActive = (id) => api.patch(`/admin/users/${id}/toggle-active`);
+export const getPendingOwners = () => api.get('/admin/owners/pending');
+export const approveOwner = (id) => api.post(`/admin/owners/${id}/approve`);
+export const rejectOwner = (id, params) => api.post(`/admin/owners/${id}/reject`, null, { params });
+export const getPendingParking = () => api.get('/admin/parking/pending');
+export const approveParking = (id) => api.post(`/admin/parking/${id}/approve`);
+export const removeParking = (id) => api.delete(`/admin/parking/${id}`);
+export const getAllBookings = () => api.get('/admin/bookings');
+export const getRevenueAnalytics = () => api.get('/admin/analytics/revenue');
+export const getBookingsByPurpose = () => api.get('/admin/analytics/bookings-by-purpose');

@@ -1,33 +1,30 @@
-import { Navigate, useLocation } from 'react-router-dom'
-import useAuthStore from '../../store/authStore'
-import { FullPageLoader } from './LoadingSpinner'
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { useAuthStore } from '@/store/authStore';
+import { FullPageLoader } from '@/components/common/LoadingSpinner';
 
-/**
- * Wraps a route with authentication + role guards.
- *
- * Usage:
- *   <ProtectedRoute>                          → any authenticated user
- *   <ProtectedRoute allowedRoles={['seeker']} → seeker only
- *   <ProtectedRoute allowedRoles={['admin']}  → admin only
- */
-export default function ProtectedRoute({ children, allowedRoles = [] }) {
-  const { accessToken, user, isLoading } = useAuthStore()
-  const location = useLocation()
+export const ProtectedRoute = ({ allowedRoles }) => {
+  const { accessToken, user, isLoading } = useAuthStore();
+  const location = useLocation();
 
-  // Still initializing / fetching user
-  if (isLoading) {
-    return <FullPageLoader text="Loading…" />
+  // Avoid a totally blank screen while we bootstrap the session.
+  // If we already have a user in state (e.g. right after login), don't block rendering.
+  if (isLoading && !user) {
+    return <FullPageLoader />;
   }
 
-  // Not authenticated → redirect to login (save current path)
+  // If we're "authenticated" by token but user isn't loaded yet,
+  // wait instead of rendering nested routes (prevents redirect churn).
+  if (accessToken && !user) {
+    return <FullPageLoader />;
+  }
+
   if (!accessToken) {
-    return <Navigate to="/login" state={{ from: location }} replace />
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Role check
-  if (allowedRoles.length > 0 && user && !allowedRoles.includes(user.user_type)) {
-    return <Navigate to="/unauthorized" replace />
+  if (allowedRoles && user && !allowedRoles.includes(user.user_type)) {
+    return <Navigate to="/unauthorized" replace />;
   }
 
-  return children
-}
+  return <Outlet />;
+};

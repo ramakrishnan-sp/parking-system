@@ -1,90 +1,113 @@
-import { useEffect, useRef, useState } from 'react'
-import { Upload, X, FileText } from 'lucide-react'
-import { cn } from '../../lib/utils'
+import { useState, useRef } from 'react';
+import { UploadCloud, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { GlassCard } from './GlassCard';
 
-export default function FileUpload({
-  label,
-  accept = 'image/*',
-  required = false,
-  onChange,
-  error,
-  helpText = 'JPG, PNG or PDF up to 10MB',
-}) {
-  const inputRef = useRef(null)
-  const [preview, setPreview] = useState(null)
-  const [fileName, setFileName] = useState(null)
-  const [dragging, setDragging] = useState(false)
+export const FileUpload = ({ onFileSelect, accept, label, className }) => {
+  const [dragActive, setDragActive] = useState(false);
+  const [file, setFile] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const inputRef = useRef(null);
 
-  const handleFile = (file) => {
-    if (!file) return
-    setFileName(file.name)
-    if (file.type.startsWith('image/')) {
-      setPreview(URL.createObjectURL(file))
-    } else {
-      setPreview(null)
+  const handleDrag = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActive(true);
+    } else if (e.type === 'dragleave') {
+      setDragActive(false);
     }
-    onChange?.(file)
-  }
+  };
 
-  const handleChange = (e) => handleFile(e.target.files?.[0])
-  const handleDrop = (e) => { e.preventDefault(); setDragging(false); handleFile(e.dataTransfer.files?.[0]) }
-  const handleClear = (e) => {
-    e.stopPropagation()
-    setPreview(null)
-    setFileName(null)
-    if (inputRef.current) inputRef.current.value = ''
-    onChange?.(null)
-  }
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFile(e.dataTransfer.files[0]);
+    }
+  };
 
-  useEffect(() => () => preview && URL.revokeObjectURL(preview), [preview])
+  const handleChange = (e) => {
+    e.preventDefault();
+    if (e.target.files && e.target.files[0]) {
+      handleFile(e.target.files[0]);
+    }
+  };
+
+  const handleFile = (selectedFile) => {
+    setFile(selectedFile);
+    onFileSelect(selectedFile);
+    
+    if (selectedFile.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (e) => setPreview(e.target.result);
+      reader.readAsDataURL(selectedFile);
+    } else {
+      setPreview(null);
+    }
+  };
+
+  const removeFile = (e) => {
+    e.stopPropagation();
+    setFile(null);
+    setPreview(null);
+    onFileSelect(null);
+    if (inputRef.current) inputRef.current.value = '';
+  };
 
   return (
-    <div className="space-y-1.5">
-      {label && (
-        <label className="text-sm font-medium">
-          {label} {required && <span className="text-destructive">*</span>}
-        </label>
-      )}
-      <div
-        onClick={() => inputRef.current?.click()}
-        onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={handleDrop}
+    <div className={cn("w-full", className)}>
+      {label && <label className="block text-sm font-medium text-white/80 mb-1.5">{label}</label>}
+      
+      <GlassCard
         className={cn(
-          'relative border-2 border-dashed rounded-xl p-4 cursor-pointer transition-colors',
-          dragging ? 'border-brand bg-brand/5'
-            : error ? 'border-destructive bg-destructive/5'
-            : 'border-border hover:border-brand/50 bg-muted/50 hover:bg-brand/5'
+          "relative flex flex-col items-center justify-center p-6 border-2 border-dashed cursor-pointer transition-colors",
+          dragActive ? "border-brand-purple bg-brand-purple/10" : "border-white/20 hover:border-white/40",
+          file ? "p-2" : "p-8"
         )}
+        onDragEnter={handleDrag}
+        onDragLeave={handleDrag}
+        onDragOver={handleDrag}
+        onDrop={handleDrop}
+        onClick={() => inputRef.current?.click()}
       >
-        <input ref={inputRef} type="file" accept={accept} className="hidden" onChange={handleChange} required={required} />
-        {fileName ? (
-          <div className="flex items-center gap-3">
-            {preview
-              ? <img src={preview} alt="preview" className="size-14 rounded-lg object-cover shrink-0" />
-              : <div className="size-14 bg-brand/10 rounded-lg flex items-center justify-center shrink-0"><FileText className="size-6 text-brand" /></div>
-            }
+        <input
+          ref={inputRef}
+          type="file"
+          accept={accept}
+          onChange={handleChange}
+          className="hidden"
+        />
+        
+        {file ? (
+          <div className="relative w-full flex items-center gap-4 p-2">
+            {preview ? (
+              <img src={preview} alt="Preview" className="w-16 h-16 object-cover rounded-lg border border-white/10" />
+            ) : (
+              <div className="w-16 h-16 bg-white/5 rounded-lg flex items-center justify-center border border-white/10">
+                <UploadCloud className="w-8 h-8 text-white/40" />
+              </div>
+            )}
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{fileName}</p>
-              <p className="text-xs text-muted-foreground">Click to change</p>
+              <p className="text-sm font-medium text-white truncate">{file.name}</p>
+              <p className="text-xs text-white/50">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
             </div>
-            <button type="button" onClick={handleClear} className="p-1.5 rounded-full hover:bg-muted transition-colors">
-              <X className="size-4 text-muted-foreground" />
+            <button
+              onClick={removeFile}
+              className="p-2 rounded-full hover:bg-red-500/20 text-red-400 transition-colors"
+            >
+              <X className="w-5 h-5" />
             </button>
           </div>
         ) : (
-          <div className="flex flex-col items-center gap-2 py-3">
-            <div className="size-10 rounded-full bg-muted flex items-center justify-center">
-              <Upload className="size-5 text-muted-foreground" />
-            </div>
-            <div className="text-center">
-              <p className="text-sm font-medium text-brand">{dragging ? 'Drop here' : 'Click to upload or drag & drop'}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{helpText}</p>
-            </div>
-          </div>
+          <>
+            <UploadCloud className="w-10 h-10 text-white/40 mb-3" />
+            <p className="text-sm text-white/80 font-medium">Click to upload or drag and drop</p>
+            <p className="text-xs text-white/40 mt-1">SVG, PNG, JPG or PDF (max. 5MB)</p>
+          </>
         )}
-      </div>
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      </GlassCard>
     </div>
-  )
-}
+  );
+};

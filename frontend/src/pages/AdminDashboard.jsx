@@ -1,390 +1,570 @@
-import { useState, useEffect, useCallback } from 'react'
-import {
-  LayoutDashboard, Users, Building2, CalendarCheck, ShieldCheck,
-  TrendingUp, DollarSign, Search,
-} from 'lucide-react'
-import { format } from 'date-fns'
-import { toast } from 'sonner'
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend,
-} from 'recharts'
-import {
-  getAdminStats, listUsers, getPendingOwners, getPendingParking,
-  getAllBookings, getRevenueAnalytics, getBookingsByPurpose,
-  toggleUserActive, approveOwner, rejectOwner, approveParking, removeParking,
-} from '../api/admin'
-import { StatCardSkeleton, TableRowSkeleton } from '../components/common/Skeleton'
-import StatCard from '../components/common/StatCard'
-import StatusBadge from '../components/common/StatusBadge'
-import EmptyState from '../components/common/EmptyState'
-import Modal from '../components/common/Modal'
-import { cn } from '../lib/utils'
+import { useState, useEffect, Component } from 'react';
+import { getAdminStats, listUsers, toggleUserActive, getPendingOwners, approveOwner, rejectOwner, getPendingParking, approveParking, removeParking, getAllBookings, getRevenueAnalytics, getBookingsByPurpose } from '@/api/admin';
+import { StatCard } from '@/components/common/StatCard';
+import { EmptyState } from '@/components/common/EmptyState';
+import { GlassCard } from '@/components/common/GlassCard';
+import { GlassBadge } from '@/components/common/GlassBadge';
+import { GlassButton } from '@/components/common/GlassButton';
+import { Modal } from '@/components/common/Modal';
+import { ConfirmModal } from '@/components/common/ConfirmModal';
+import { StatCardSkeleton, TableRowSkeleton } from '@/components/common/Skeleton';
+import { Users, Car, CalendarCheck, IndianRupee, ShieldCheck, Check, X, Eye } from 'lucide-react';
+import { toast } from 'sonner';
+import { format, parseISO } from 'date-fns';
 
-const TABS = [
-  { key: 'overview',  label: 'Overview',   icon: LayoutDashboard },
-  { key: 'users',     label: 'Users',      icon: Users },
-  { key: 'parking',   label: 'Parking',    icon: Building2 },
-  { key: 'bookings',  label: 'Bookings',   icon: CalendarCheck },
-  { key: 'kyc',       label: 'KYC Queue',  icon: ShieldCheck },
-]
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+} from 'recharts';
 
-const CHART_COLORS = ['#9333ea', '#2563eb', '#0d9488', '#ea580c', '#db2777']
+class ChartErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="w-full h-full flex items-center justify-center text-sm text-white/50">
+          Charts unavailable
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export default function AdminDashboard() {
-  const [tab, setTab]               = useState('overview')
-  const [stats, setStats]           = useState(null)
-  const [users, setUsers]           = useState([])
-  const [pendingOwners, setPO]      = useState([])
-  const [pendingParking, setPP]     = useState([])
-  const [bookings, setBookings]     = useState([])
-  const [revenue, setRevenue]       = useState([])
-  const [purposeData, setPurpose]   = useState([])
-  const [loading, setLoading]       = useState(true)
-  const [search, setSearch]         = useState('')
-  const [actionId, setActionId]     = useState(null)
-  const [selectedParking, setSelectedParking] = useState(null)
+  const [activeTab, setActiveTab] = useState('overview');
+  const [stats, setStats] = useState(null);
+  const [users, setUsers] = useState([]);
+  const [pendingOwners, setPendingOwners] = useState([]);
+  const [pendingParking, setPendingParking] = useState([]);
+  const [bookings, setBookings] = useState([]);
+  const [revenueData, setRevenueData] = useState([]);
+  const [purposeData, setPurposeData] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const loadAll = useCallback(async () => {
-    setLoading(true)
+  const [selectedParking, setSelectedParking] = useState(null);
+  const [isParkingModalOpen, setIsParkingModalOpen] = useState(false);
+  const [confirmModalOpen, setConfirmModalOpen] = useState(false);
+  const [parkingToRemove, setParkingToRemove] = useState(null);
+  const safeArray = (value) => (Array.isArray(value) ? value : []);
+  const safeString = (value, fallback = '') => (value == null ? fallback : String(value));
+  const safeInitial = (value) => {
+    const s = safeString(value, '?').trim();
+    return (s.charAt(0) || '?').toUpperCase();
+  };
+  const safeFormatDate = (value, fmt = 'MMM d, yyyy') => {
+    const s = safeString(value, '').trim();
+    if (!s) return '—';
     try {
-      const [s, u, po, pp, bk, rv, pu] = await Promise.all([
-        getAdminStats(),
-        listUsers(),
-        getPendingOwners(),
-        getPendingParking(),
-        getAllBookings(),
-        getRevenueAnalytics(),
-        getBookingsByPurpose(),
-      ])
-      setStats(s.data)
-      setUsers(u.data)
-      setPO(po.data)
-      setPP(pp.data)
-      setBookings(bk.data)
-      setRevenue(rv.data)
-      setPurpose(pu.data)
-    } catch {} finally { setLoading(false) }
-  }, [])
+      return format(parseISO(s), fmt);
+    } catch {
+      return '—';
+    }
+  };
 
-  useEffect(() => { loadAll() }, [])
+  useEffect(() => {
+    fetchData();
+  }, [activeTab]);
+
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      if (activeTab === 'overview') {
+        const [statsRes, revRes, purpRes] = await Promise.all([
+          getAdminStats(),
+          getRevenueAnalytics(),
+          getBookingsByPurpose()
+        ]);
+        setStats(statsRes.data);
+        setRevenueData(revRes.data);
+        setPurposeData(purpRes.data);
+      } else if (activeTab === 'users') {
+        const res = await listUsers();
+        setUsers(res.data);
+      } else if (activeTab === 'kyc') {
+        const res = await getPendingOwners();
+        setPendingOwners(res.data);
+      } else if (activeTab === 'parking') {
+        const res = await getPendingParking();
+        setPendingParking(res.data);
+      } else if (activeTab === 'bookings') {
+        const res = await getAllBookings();
+        setBookings(res.data);
+      }
+    } catch (error) {
+      toast.error('Failed to fetch admin data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleToggleUser = async (id) => {
-    setActionId(id)
-    try { await toggleUserActive(id); toast.success('User status updated'); loadAll() }
-    catch {} finally { setActionId(null) }
-  }
+    try {
+      await toggleUserActive(id);
+      toast.success('User status updated');
+      fetchData();
+    } catch (error) {
+      toast.error('Failed to update user');
+    }
+  };
 
-  const handleApproveOwner = async (userId) => {
-    setActionId(userId)
-    try { await approveOwner(userId); toast.success('Owner approved'); loadAll() }
-    catch {} finally { setActionId(null) }
-  }
+  const handleApproveOwner = async (id) => {
+    try {
+      await approveOwner(id);
+      toast.success('Owner approved successfully');
+      fetchData();
+    } catch (error) {
+      toast.error('Failed to approve owner');
+    }
+  };
 
-  const handleRejectOwner = async (userId) => {
-    const reason = prompt('Rejection reason:')
-    if (!reason) return
-    setActionId(userId)
-    try { await rejectOwner(userId, reason); toast.success('Owner rejected'); loadAll() }
-    catch {} finally { setActionId(null) }
-  }
+  const handleRejectOwner = async (id) => {
+    const reason = window.prompt('Reason for rejection:');
+    if (!reason) return;
+    try {
+      await rejectOwner(id, { reason });
+      toast.success('Owner rejected');
+      fetchData();
+    } catch (error) {
+      toast.error('Failed to reject owner');
+    }
+  };
 
   const handleApproveParking = async (id) => {
-    setActionId(id)
-    try { await approveParking(id); toast.success('Parking approved'); loadAll() }
-    catch {} finally { setActionId(null) }
-  }
+    try {
+      await approveParking(id);
+      toast.success('Parking space approved');
+      setIsParkingModalOpen(false);
+      fetchData();
+    } catch (error) {
+      toast.error('Failed to approve parking');
+    }
+  };
 
-  const handleRemoveParking = async (id) => {
-    if (!confirm('Remove this parking space?')) return
-    setActionId(id)
-    try { await removeParking(id); toast.success('Removed'); loadAll() }
-    catch {} finally { setActionId(null) }
-  }
+  const handleRemoveClick = (id) => {
+    setParkingToRemove(id);
+    setConfirmModalOpen(true);
+  };
 
-  const filteredUsers = users.filter((u) =>
-    u.full_name.toLowerCase().includes(search.toLowerCase()) ||
-    u.email.toLowerCase().includes(search.toLowerCase())
-  )
+  const handleConfirmRemove = async () => {
+    if (!parkingToRemove) return;
+    try {
+      await removeParking(parkingToRemove);
+      toast.success('Parking space removed');
+      fetchData();
+    } catch (error) {
+      toast.error('Failed to remove parking');
+    } finally {
+      setConfirmModalOpen(false);
+      setParkingToRemove(null);
+    }
+  };
 
-  const thCls = 'text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide'
-  const tdCls = 'px-4 py-3'
+  const COLORS = ['#7c3aed', '#ec4899', '#06b6d4', '#10b981', '#f59e0b'];
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-foreground">Admin Dashboard</h1>
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold text-white mb-2">Admin Dashboard</h1>
+        <p className="text-white/60">Manage platform operations, users, and analytics.</p>
+      </div>
 
-      {/* Tab navigation */}
-      <div className="flex gap-1 border-b border-border overflow-x-auto">
-        {TABS.map(({ key, label, icon: Icon }) => (
+      {/* Tabs */}
+      <div className="flex overflow-x-auto border-b border-white/10 custom-scrollbar">
+        {[
+          { id: 'overview', label: 'Overview' },
+          { id: 'users', label: 'Users' },
+          { id: 'parking', label: 'Parking' },
+          { id: 'bookings', label: 'Bookings' },
+          { id: 'kyc', label: 'KYC Queue', badge: stats?.pending_owner_verifications || 0 }
+        ].map(tab => (
           <button
-            key={key}
-            onClick={() => setTab(key)}
-            className={cn(
-              'flex items-center gap-1.5 px-4 pb-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap',
-              tab === key
-                ? 'border-brand text-brand'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            )}
+            key={tab.id}
+            className={`px-6 py-3 text-sm font-medium transition-colors relative flex items-center gap-2 whitespace-nowrap ${activeTab === tab.id ? 'text-brand-pink' : 'text-white/60 hover:text-white'}`}
+            onClick={() => setActiveTab(tab.id)}
           >
-            <Icon className="size-4" />
-            {label}
-            {key === 'kyc' && pendingOwners.length > 0 && (
-              <span className="ml-1 bg-destructive text-white text-xs rounded-full px-1.5 py-0.5">
-                {pendingOwners.length}
+            {tab.label}
+            {tab.badge > 0 && (
+              <span className="bg-amber-500 text-amber-950 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                {tab.badge}
               </span>
             )}
-            {key === 'parking' && pendingParking.length > 0 && (
-              <span className="ml-1 bg-yellow-500 text-white text-xs rounded-full px-1.5 py-0.5">
-                {pendingParking.length}
-              </span>
-            )}
+            {activeTab === tab.id && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-pink shadow-[0_0_10px_rgba(236,72,153,0.5)]" />}
           </button>
         ))}
       </div>
 
-      {/* ── OVERVIEW ─────────────────────────────────────────── */}
-      {tab === 'overview' && stats ? (
-        <div className="space-y-6">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard icon={Users}         label="Total Users"       value={stats.users.total.toLocaleString()}                      sub={`${stats.users.seekers} seekers · ${stats.users.owners} owners`}         color="brand" />
-            <StatCard icon={Building2}     label="Parking Spaces"    value={stats.parking.total.toLocaleString()}                    sub={`${stats.parking.pending_approval} pending approval`}                     color="blue" />
-            <StatCard icon={CalendarCheck} label="Total Bookings"    value={stats.bookings.total.toLocaleString()}                   sub={`${stats.bookings.confirmed} confirmed`}                                  color="green" />
-            <StatCard icon={DollarSign}    label="Platform Revenue"  value={`₹${stats.revenue.platform_commission.toLocaleString()}`} sub={`₹${stats.revenue.total_processed.toLocaleString()} total`}            color="yellow" />
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <div className="rounded-2xl bg-card ring-1 ring-border shadow-card p-5">
-              <h3 className="text-sm font-semibold mb-4">Monthly Revenue</h3>
-              {revenue.length > 0 ? (
-                <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={revenue}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                    <XAxis dataKey="month" tickFormatter={(v) => format(new Date(v), 'MMM')} tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} />
-                    <YAxis tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} />
-                    <Tooltip contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8 }} formatter={(v) => [`₹${Number(v).toLocaleString()}`, 'Revenue']} />
-                    <Bar dataKey="revenue" fill="var(--brand)" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : <EmptyState icon={TrendingUp} title="No revenue data" message="Revenue chart will appear once payments are processed." />}
+      <div className="pt-4">
+        {activeTab === 'overview' && (
+          <div className="space-y-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {isLoading || !stats ? (
+                Array(4).fill(0).map((_, i) => <StatCardSkeleton key={i} />)
+              ) : (
+                <>
+                  <StatCard
+                    icon={Users}
+                    label="Total Users"
+                    value={stats?.users?.total ?? 0}
+                    sub={`${stats?.users?.seekers ?? 0} Seekers · ${stats?.users?.owners ?? 0} Owners`}
+                    color="brand-purple"
+                  />
+                  <StatCard
+                    icon={Car}
+                    label="Parking Spaces"
+                    value={stats?.parking?.total ?? 0}
+                    sub={`${stats?.parking?.pending_approval ?? 0} Pending`}
+                    color="brand-cyan"
+                  />
+                  <StatCard
+                    icon={CalendarCheck}
+                    label="Total Bookings"
+                    value={stats?.bookings?.total ?? 0}
+                    sub={`${stats?.bookings?.confirmed ?? 0} Confirmed`}
+                    color="green-500"
+                  />
+                  <StatCard
+                    icon={IndianRupee}
+                    label="Platform Revenue"
+                    value={`₹${stats?.revenue?.platform_commission ?? 0}`}
+                    sub={`From ₹${stats?.revenue?.total_processed ?? 0} processed`}
+                    color="brand-pink"
+                  />
+                </>
+              )}
             </div>
-            <div className="rounded-2xl bg-card ring-1 ring-border shadow-card p-5">
-              <h3 className="text-sm font-semibold mb-4">Bookings by Purpose</h3>
-              {purposeData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={220}>
-                  <PieChart>
-                    <Pie data={purposeData} dataKey="count" nameKey="purpose" cx="50%" cy="50%" outerRadius={80} label={({ purpose }) => purpose?.replace('_', ' ')} labelLine={false}>
-                      {purposeData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-                    </Pie>
-                    <Tooltip contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8 }} />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : <EmptyState icon={CalendarCheck} title="No booking data" message="Booking purpose breakdown will appear here." />}
-            </div>
-          </div>
-        </div>
-      ) : tab === 'overview' ? (
-        /* Skeleton while stats haven't loaded */
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => <StatCardSkeleton key={i} />)}
-        </div>
-      ) : null}
 
-      {/* ── USERS ────────────────────────────────────────────── */}
-      {tab === 'users' && (
-        <div className="space-y-4">
-          <div className="relative max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search users…"
-              className="h-9 w-full rounded-lg bg-background ring-1 ring-border pl-9 pr-3 text-sm outline-none"
-            />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <GlassCard className="p-6 h-96 flex flex-col">
+                <h3 className="text-lg font-semibold text-white mb-6">Monthly Revenue</h3>
+                <div className="flex-1 min-h-0">
+                  <ChartErrorBoundary>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={safeArray(revenueData)}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" vertical={false} />
+                        <XAxis dataKey="month" stroke="rgba(255,255,255,0.5)" tick={{fill: 'rgba(255,255,255,0.5)'}} />
+                        <YAxis stroke="rgba(255,255,255,0.5)" tick={{fill: 'rgba(255,255,255,0.5)'}} />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: 'rgba(10,10,26,0.9)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }}
+                          itemStyle={{ color: '#fff' }}
+                        />
+                        <Bar dataKey="revenue" fill="#7c3aed" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </ChartErrorBoundary>
+                </div>
+              </GlassCard>
+
+              <GlassCard className="p-6 h-96 flex flex-col">
+                <h3 className="text-lg font-semibold text-white mb-6">Bookings by Purpose</h3>
+                <div className="flex-1 min-h-0">
+                  <ChartErrorBoundary>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={safeArray(purposeData)}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={60}
+                          outerRadius={100}
+                          paddingAngle={5}
+                          dataKey="count"
+                          nameKey="purpose"
+                          label={({name, percent}) => `${name} ${(percent * 100).toFixed(0)}%`}
+                          labelLine={false}
+                        >
+                          {safeArray(purposeData).map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: 'rgba(10,10,26,0.9)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }}
+                          itemStyle={{ color: '#fff' }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </ChartErrorBoundary>
+                </div>
+              </GlassCard>
+            </div>
           </div>
-          <div className="rounded-2xl bg-card ring-1 ring-border shadow-card overflow-hidden p-0">
+        )}
+
+        {activeTab === 'users' && (
+          <div className="glass-panel overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px] text-sm">
-                <thead className="bg-muted"><tr>{['User', 'Role', 'Phone', 'Status', 'Joined', 'Actions'].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
-                <tbody className="divide-y divide-border">
-                  {loading
-                    ? Array.from({ length: 5 }).map((_, i) => <TableRowSkeleton key={i} cols={6} />)
-                    : filteredUsers.map((u) => (
-                      <tr key={u.id} className="hover:bg-muted/30 transition-colors">
-                        <td className={tdCls}>
-                          <div className="flex items-center gap-3">
-                            {u.profile_photo_url
-                              ? <img src={u.profile_photo_url} alt="" className="size-8 rounded-full object-cover" />
-                              : <div className="size-8 rounded-full bg-brand/20 grid place-items-center text-brand text-xs font-bold">{u.full_name?.[0]}</div>
-                            }
-                            <div>
-                              <p className="font-medium">{u.full_name}</p>
-                              <p className="text-xs text-muted-foreground">{u.email}</p>
-                            </div>
+              <table className="w-full text-left min-w-[640px]">
+                <thead className="bg-white/5 border-b border-white/10 text-xs uppercase text-white/60">
+                  <tr>
+                    <th className="p-4 font-medium">User</th>
+                    <th className="p-4 font-medium">Role</th>
+                    <th className="p-4 font-medium">Phone</th>
+                    <th className="p-4 font-medium">Status</th>
+                    <th className="p-4 font-medium">Joined</th>
+                    <th className="p-4 font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5 text-sm text-white/80">
+                  {isLoading ? (
+                    Array(5).fill(0).map((_, i) => <TableRowSkeleton key={i} />)
+                  ) : users?.map(u => (
+                    <tr key={u.id} className="hover:bg-white/[0.02] transition-colors">
+                      <td className="p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-brand-purple/20 flex items-center justify-center text-brand-purple font-bold">
+                            {safeInitial(u.full_name)}
+                          </div>
+                          <div>
+                            <p className="font-medium text-white">{safeString(u.full_name, '—')}</p>
+                            <p className="text-xs text-white/50">{safeString(u.email, '—')}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-4"><GlassBadge type={u.user_type} /></td>
+                      <td className="p-4">{safeString(u.phone, '—')}</td>
+                                            <td className="p-4 text-white/60">{safeFormatDate(u.created_at)}</td>
+                      <td className="p-4">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${u.is_active ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                          {u.is_active ? 'Active' : 'Disabled'}
+                        </span>
+                      </td>
+                      <td className="p-4 text-white/60">{format(parseISO(u.created_at), 'MMM d, yyyy')}</td>
+                      <td className="p-4">
+                        <button 
+                          onClick={() => handleToggleUser(u.id)}
+                          className={`text-xs font-medium px-3 py-1.5 rounded-md transition-colors ${u.is_active ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20' : 'bg-green-500/10 text-green-400 hover:bg-green-500/20'}`}
+                        >
+                          {u.is_active ? 'Disable' : 'Enable'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'kyc' && (
+          <div className="space-y-6">
+            {isLoading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {Array(4).fill(0).map((_, i) => <StatCardSkeleton key={i} />)}
+              </div>
+            ) : pendingOwners?.length === 0 ? (
+              <EmptyState
+                icon={ShieldCheck}
+                title="KYC Queue Clear"
+                message="There are no pending owner verifications at this time."
+              />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {pendingOwners?.map(owner => (
+                  <GlassCard key={owner.profile_id} className="p-6">
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <h3 className="text-lg font-bold text-white">{owner.full_name}</h3>
+                        <h3 className="text-lg font-bold text-white">{safeString(owner.full_name, '—')}</h3>
+                        <p className="text-sm text-white/60">{safeString(owner.email, '—')} • {safeString(owner.phone, '—')}</p>
+                      </div>
+                      <GlassBadge status="pending" />
+                    </div>
+                    
+                    <div className="space-y-3 mb-6 bg-white/5 p-4 rounded-xl border border-white/10">
+                      <div>
+                        <p className="text-xs text-white/50 mb-1">Property Address</p>
+                        <p className="text-sm text-white">{safeString(owner.property_address, '—')}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-white/50 mb-1">Property Type</p>
+                        <p className="text-sm text-white capitalize">{safeString(owner.property_type, '—').replaceAll('_', ' ')}</p>
+                      </div>
+                      <div className="flex gap-4 pt-2">
+                        <a href={owner.govt_id_proof_url} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-cyan hover:underline flex items-center">
+                          <Eye className="w-3 h-3 mr-1" /> Govt ID
+                        </a>
+                        <a href={owner.aadhaar_proof_url} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-purple hover:underline flex items-center">
+                          <Eye className="w-3 h-3 mr-1" /> Aadhaar
+                        </a>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <GlassButton variant="danger" className="flex-1 py-2 text-sm" onClick={() => handleRejectOwner(owner.user_id)}>
+                        <X className="w-4 h-4 mr-1" /> Reject
+                      </GlassButton>
+                      <GlassButton className="flex-1 py-2 text-sm bg-green-500 hover:bg-green-600" onClick={() => handleApproveOwner(owner.user_id)}>
+                        <Check className="w-4 h-4 mr-1" /> Approve
+                      </GlassButton>
+                    </div>
+                  </GlassCard>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'parking' && (
+          <div className="glass-panel overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left min-w-[640px]">
+                <thead className="bg-white/5 border-b border-white/10 text-xs uppercase text-white/60">
+                  <tr>
+                    <th className="p-4 font-medium">Title</th>
+                    <th className="p-4 font-medium">Owner ID</th>
+                    <th className="p-4 font-medium">Price/hr</th>
+                    <th className="p-4 font-medium">Vehicles</th>
+                    <th className="p-4 font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5 text-sm text-white/80">
+                  {isLoading ? (
+                    Array(5).fill(0).map((_, i) => <TableRowSkeleton key={i} />)
+                  ) : pendingParking?.length === 0 ? (
+                    <tr>
+                      <td colSpan="5" className="p-8 text-center text-white/50">No pending parking approvals.</td>
+                    </tr>
+                  ) : (
+                    pendingParking?.map(p => (
+                      <tr key={p.id} className="hover:bg-white/[0.02] transition-colors">
+                        <td className="p-4 font-medium text-white">{p.title} <span className="text-xs text-white/40 ml-2">({p.total_slots} slots)</span></td>
+                        <td className="p-4 font-medium text-white">{safeString(p.title, '—')} <span className="text-xs text-white/40 ml-2">({safeString(p.total_slots, '0')} slots)</span></td>
+                        <td className="p-4 font-mono text-xs text-white/60">{p.owner_id}</td>
+                        <td className="p-4 text-brand-cyan font-medium">₹{p.price_per_hour}</td>
+                        <td className="p-4">
+                          <div className="flex gap-1">
+                            <span className="text-[10px] uppercase bg-white/10 px-1.5 py-0.5 rounded">
+                              {(p.vehicle_type_allowed || 'all').toString()}
+                            </span>
                           </div>
                         </td>
-                        <td className={tdCls}><StatusBadge status={u.user_type} /></td>
-                        <td className={cn(tdCls, 'text-muted-foreground text-xs')}>{u.phone}</td>
-                        <td className={tdCls}><StatusBadge status={u.is_active ? 'approved' : 'cancelled'} /></td>
-                        <td className={cn(tdCls, 'text-muted-foreground text-xs')}>{format(new Date(u.created_at), 'dd MMM yyyy')}</td>
-                        <td className={tdCls}>
-                          <div className="flex gap-1.5">
-                            <button onClick={() => handleToggleUser(u.id)} disabled={actionId === u.id}
-                              className={cn('px-2.5 py-1 rounded text-xs font-medium transition-colors',
-                                u.is_active ? 'text-destructive hover:bg-destructive/10' : 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
-                              )}>
-                              {u.is_active ? 'Disable' : 'Enable'}
+                        <td className="p-4">
+                          <div className="flex gap-2">
+                            <button onClick={() => { setSelectedParking(p); setIsParkingModalOpen(true); }} className="p-1.5 bg-white/10 rounded hover:bg-white/20 text-white transition-colors" aria-label="View">
+                              <Eye className="w-4 h-4" />
                             </button>
-                            {u.user_type === 'owner' && u.owner_profile?.verification_status === 'pending' && (
-                              <>
-                                <button onClick={() => handleApproveOwner(u.id)} disabled={actionId === u.id} className="px-2.5 py-1 rounded text-xs font-medium text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20">Approve</button>
-                                <button onClick={() => handleRejectOwner(u.id)} disabled={actionId === u.id} className="px-2.5 py-1 rounded text-xs font-medium text-destructive hover:bg-destructive/10">Reject</button>
-                              </>
-                            )}
+                            <button onClick={() => handleApproveParking(p.id)} className="p-1.5 bg-green-500/20 rounded hover:bg-green-500/40 text-green-400 transition-colors" aria-label="Approve">
+                              <Check className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => handleRemoveClick(p.id)} className="p-1.5 bg-red-500/20 rounded hover:bg-red-500/40 text-red-400 transition-colors" aria-label="Reject">
+                              <X className="w-4 h-4" />
+                            </button>
                           </div>
                         </td>
                       </tr>
                     ))
-                  }
+                  )}
                 </tbody>
               </table>
-              {!loading && filteredUsers.length === 0 && <EmptyState icon={Users} title="No users found" />}
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* ── PARKING ──────────────────────────────────────────── */}
-      {tab === 'parking' && (
-        <div className="space-y-5">
-          {pendingParking.length > 0 ? (
-            <div>
-              <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                Pending Approval
-                <span className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400 text-xs px-2 py-0.5 rounded-full">{pendingParking.length}</span>
-              </h2>
-              <div className="rounded-2xl bg-card ring-1 ring-border shadow-card overflow-hidden p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[640px] text-sm">
-                    <thead className="bg-muted"><tr>{['Title', 'Owner', 'Price/hr', 'Vehicles', 'Actions'].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
-                    <tbody className="divide-y divide-border">
-                      {pendingParking.map((ps) => (
-                        <tr key={ps.id} className="hover:bg-muted/30 transition-colors">
-                          <td className={tdCls}><p className="font-medium">{ps.title}</p><p className="text-xs text-muted-foreground">{ps.total_slots} slots</p></td>
-                          <td className={cn(tdCls, 'text-muted-foreground')}>{ps.owner?.full_name ?? '—'}</td>
-                          <td className={cn(tdCls, 'font-medium text-brand')}>₹{ps.price_per_hour}</td>
-                          <td className={tdCls}><span className="text-xs bg-muted px-2 py-0.5 rounded-full">{ps.vehicle_type_allowed}</span></td>
-                          <td className={tdCls}>
-                            <div className="flex gap-1.5">
-                              <button onClick={() => setSelectedParking(ps)} className="px-2.5 py-1 rounded text-xs font-medium text-muted-foreground hover:bg-muted">View</button>
-                              <button onClick={() => handleApproveParking(ps.id)} disabled={actionId === ps.id} className="px-2.5 py-1 rounded text-xs font-medium text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20">Approve</button>
-                              <button onClick={() => handleRemoveParking(ps.id)} disabled={actionId === ps.id} className="px-2.5 py-1 rounded text-xs font-medium text-destructive hover:bg-destructive/10">Remove</button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <EmptyState icon={Building2} title="No pending approvals" message="All parking spaces have been reviewed." />
-          )}
-        </div>
-      )}
-
-      {/* ── BOOKINGS ─────────────────────────────────────────── */}
-      {tab === 'bookings' && (
-        <div className="rounded-2xl bg-card ring-1 ring-border shadow-card overflow-hidden p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-sm">
-              <thead className="bg-muted"><tr>{['Ref', 'Space', 'From', 'To', 'Amount', 'Status'].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
-              <tbody className="divide-y divide-border">
-                {loading
-                  ? Array.from({ length: 5 }).map((_, i) => <TableRowSkeleton key={i} cols={6} />)
-                  : bookings.map((b) => (
-                    <tr key={b.id} className="hover:bg-muted/30 transition-colors">
-                      <td className={cn(tdCls, 'font-mono text-xs')}>{b.id.slice(0,8).toUpperCase()}</td>
-                      <td className={tdCls}>{b.parking_space?.title ?? '—'}</td>
-                      <td className={cn(tdCls, 'text-xs text-muted-foreground')}>{format(new Date(b.start_time), 'dd MMM, h:mm a')}</td>
-                      <td className={cn(tdCls, 'text-xs text-muted-foreground')}>{format(new Date(b.end_time), 'dd MMM, h:mm a')}</td>
-                      <td className={cn(tdCls, 'font-medium text-brand')}>₹{b.total_amount}</td>
-                      <td className={tdCls}><StatusBadge status={b.booking_status} /></td>
+        {activeTab === 'bookings' && (
+          <div className="glass-panel overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left min-w-[640px]">
+                <thead className="bg-white/5 border-b border-white/10 text-xs uppercase text-white/60">
+                  <tr>
+                    <th className="p-4 font-medium">Ref</th>
+                    <th className="p-4 font-medium">Space ID</th>
+                    <th className="p-4 font-medium">Duration</th>
+                    <th className="p-4 font-medium">Amount</th>
+                    <th className="p-4 font-medium">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5 text-sm text-white/80">
+                  {isLoading ? (
+                    Array(5).fill(0).map((_, i) => <TableRowSkeleton key={i} />)
+                  ) : bookings?.length === 0 ? (
+                    <tr>
+                      <td colSpan="5" className="p-8 text-center text-white/50">No bookings found.</td>
                     </tr>
-                  ))
-                }
-              </tbody>
-            </table>
-            {!loading && bookings.length === 0 && <EmptyState icon={CalendarCheck} title="No bookings" />}
-          </div>
-        </div>
-      )}
-
-      {/* ── KYC QUEUE ────────────────────────────────────────── */}
-      {tab === 'kyc' && (
-        pendingOwners.length === 0
-          ? <EmptyState icon={ShieldCheck} title="No pending verifications" message="All owner KYC requests have been processed." />
-          : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {pendingOwners.map((p) => (
-                <div key={p.profile_id} className="rounded-2xl bg-card ring-1 ring-border shadow-card p-5 space-y-3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-float">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <h3 className="font-semibold">{p.full_name}</h3>
-                      <p className="text-xs text-muted-foreground">{p.email}</p>
-                      <p className="text-xs text-muted-foreground">{p.phone}</p>
-                    </div>
-                    <span className="text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400 px-2 py-0.5 rounded-full font-medium whitespace-nowrap">Pending KYC</span>
-                  </div>
-                  <div className="text-xs text-muted-foreground space-y-0.5">
-                    <p><span className="font-medium text-foreground">Property:</span> {p.property_address}</p>
-                    <p><span className="font-medium text-foreground">Type:</span> {p.property_type}</p>
-                  </div>
-                  <div className="flex gap-2 text-xs">
-                    {p.govt_id_proof_url && <a href={p.govt_id_proof_url} target="_blank" rel="noopener noreferrer" className="px-2.5 py-1 rounded border border-border hover:bg-muted transition-colors">View Govt ID</a>}
-                    {p.aadhaar_proof_url && <a href={p.aadhaar_proof_url} target="_blank" rel="noopener noreferrer" className="px-2.5 py-1 rounded border border-border hover:bg-muted transition-colors">View Aadhaar</a>}
-                  </div>
-                  <div className="flex gap-2 pt-1 border-t border-border">
-                    <button onClick={() => handleApproveOwner(p.user_id)} disabled={actionId === p.user_id} className="flex-1 h-8 rounded-lg bg-green-600 text-white text-xs font-medium hover:bg-green-700 disabled:opacity-50 transition-colors">Approve</button>
-                    <button onClick={() => handleRejectOwner(p.user_id)} disabled={actionId === p.user_id} className="flex-1 h-8 rounded-lg border border-destructive text-destructive text-xs font-medium hover:bg-destructive/10 disabled:opacity-50 transition-colors">Reject</button>
-                  </div>
-                </div>
-              ))}
+                  ) : (
+                    bookings?.map(b => (
+                      <tr key={b.id} className="hover:bg-white/[0.02] transition-colors">
+                        <td className="p-4 font-mono text-xs">{safeString(b.id, '').split('-')[0]?.toUpperCase() || '—'}</td>
+                        <td className="p-4 font-mono text-xs text-white/60">{safeString(b.parking_id, '—')}</td>
+                        <td className="p-4">
+                          <div className="flex flex-col">
+                            <span>{safeFormatDate(b.start_time, 'MMM d, h:mm a')}</span>
+                            <span className="text-xs text-white/40">{safeString(b.total_hours, '—')} hrs</span>
+                          </div>
+                        </td>
+                        <td className="p-4 font-medium text-green-400">₹{safeString(b.total_amount, '—')}</td>
+                        <td className="p-4"><GlassBadge status={b.booking_status} /></td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
-          )
-      )}
+          </div>
+        )}
+      </div>
 
-      {/* Parking detail modal */}
-      <Modal isOpen={!!selectedParking} onClose={() => setSelectedParking(null)} title="Parking Space Details" maxWidth="sm:max-w-xl">
+      <Modal open={isParkingModalOpen} onOpenChange={setIsParkingModalOpen} title="Review Parking Space">
         {selectedParking && (
           <div className="space-y-4">
-            {selectedParking.photos?.length > 0 && (
-              <div className="grid grid-cols-3 gap-2">
-                {selectedParking.photos.map((p) => (
-                  <img key={p.id} src={p.photo_url} alt="" className="rounded-xl h-24 w-full object-cover" onError={(e) => { e.target.style.display = 'none' }} />
-                ))}
-              </div>
+            {selectedParking.photos?.[0] && (
+              <img src={selectedParking.photos[0].photo_url} alt="Parking" className="w-full h-48 object-cover rounded-xl border border-white/10" />
             )}
-            <dl className="grid grid-cols-2 gap-3 text-sm">
-              {[
-                ['Title', selectedParking.title],
-                ['Price/hr', `₹${selectedParking.price_per_hour}`],
-                ['Slots', selectedParking.total_slots],
-                ['Vehicle', selectedParking.vehicle_type_allowed],
-                ['Property', selectedParking.property_type ?? '—'],
-                ['Amenities', selectedParking.amenities?.join(', ') || '—'],
-              ].map(([k, v]) => (
-                <div key={k}>
-                  <dt className="text-xs text-muted-foreground mb-0.5">{k}</dt>
-                  <dd className="font-medium">{v}</dd>
-                </div>
-              ))}
-            </dl>
-            <button onClick={() => { handleApproveParking(selectedParking.id); setSelectedParking(null) }} className="w-full h-10 rounded-xl bg-brand text-white text-sm font-medium hover:opacity-90 active:scale-[0.98] transition-all">Approve this space</button>
+            <div>
+              <h3 className="text-lg font-bold text-white mb-1">{selectedParking.title}</h3>
+              <p className="text-sm text-white/60">{selectedParking.description}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-4 bg-white/5 p-4 rounded-xl border border-white/10">
+              <div>
+                <p className="text-xs text-white/50 mb-1">Price</p>
+                <p className="text-sm font-medium text-white">₹{selectedParking.price_per_hour}/hr</p>
+              </div>
+              <div>
+                <p className="text-xs text-white/50 mb-1">Slots</p>
+                <p className="text-sm font-medium text-white">{selectedParking.total_slots}</p>
+              </div>
+              <div className="col-span-2">
+                <p className="text-xs text-white/50 mb-1">Amenities</p>
+                <p className="text-sm font-medium text-white">
+                  {Array.isArray(selectedParking.amenities)
+                    ? selectedParking.amenities.join(', ')
+                    : safeString(selectedParking.amenities, '—')}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3 pt-4">
+              <GlassButton variant="danger" className="flex-1" onClick={() => { setIsParkingModalOpen(false); handleRemoveClick(selectedParking.id); }}>Reject</GlassButton>
+              <GlassButton className="flex-1 bg-green-500 hover:bg-green-600" onClick={() => handleApproveParking(selectedParking.id)}>Approve</GlassButton>
+            </div>
           </div>
         )}
       </Modal>
+
+      <ConfirmModal
+        open={confirmModalOpen}
+        onOpenChange={setConfirmModalOpen}
+        onConfirm={handleConfirmRemove}
+        title="Remove Parking Space"
+        message="Are you sure you want to remove this space?"
+        confirmText="Remove"
+        cancelText="Cancel"
+        isDestructive={true}
+      />
     </div>
-  )
+  );
 }

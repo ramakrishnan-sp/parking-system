@@ -1,234 +1,144 @@
-import { Link } from 'react-router-dom'
-import {
-  MapPin, Shield, Clock, CreditCard,
-  Star, Users, ArrowRight, Car,
-} from 'lucide-react'
-
-const FEATURES = [
-  {
-    icon: MapPin,
-    title: 'Find Nearby Parking',
-    desc: 'Instantly discover available private parking spaces within your preferred radius using live geolocation search.',
-  },
-  {
-    icon: Shield,
-    title: 'Privacy Protected',
-    desc: 'Exact location is revealed only after payment. Masked coordinates are shown during search to protect owners.',
-  },
-  {
-    icon: Clock,
-    title: 'Flexible Booking',
-    desc: 'Book by the hour for office, shopping, events, or long stays. Cancel anytime before your slot starts.',
-  },
-  {
-    icon: CreditCard,
-    title: 'Secure Payments',
-    desc: 'Razorpay-powered checkout with instant booking confirmation and hassle-free refunds when needed.',
-  },
-  {
-    icon: Star,
-    title: 'Verified Spaces',
-    desc: 'Every space is admin-approved with owner KYC verification for your complete peace of mind.',
-  },
-  {
-    icon: Users,
-    title: 'Earn as an Owner',
-    desc: 'Monetise your unused driveway, garage, or lot. Set your own price and availability schedule.',
-  },
-]
-
-const STEPS = [
-  { step: '01', title: 'Search',  desc: 'Enter your destination and see nearby available spaces on the map.' },
-  { step: '02', title: 'Book',    desc: 'Choose a slot, select your time range, and pay securely online.' },
-  { step: '03', title: 'Park',    desc: 'Receive the exact address after payment and navigate directly there.' },
-]
-
-const STATS = [
-  { value: '2,400+',  label: 'Parking spaces' },
-  { value: '15,000+', label: 'Happy drivers' },
-  { value: '₹12M+',   label: 'Total saved' },
-  { value: '4.8★',    label: 'Average rating' },
-]
+import { Link } from 'react-router-dom';
+import { GlassButton } from '@/components/common/GlassButton';
+import { GlassCard } from '@/components/common/GlassCard';
+import { MapPin, Shield, Clock, CreditCard, Star, DollarSign, Car } from 'lucide-react';
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-[100svh] bg-bg-primary text-white relative overflow-x-hidden">
+      {/* Blobs */}
+      <div className="blob blob-1"></div>
+      <div className="blob blob-2"></div>
+      <div className="blob blob-3"></div>
 
-      {/* ── Navbar ──────────────────────────────────────── */}
-      <nav className="sticky top-0 z-50 bg-background/80 backdrop-blur border-b border-border">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="size-8 rounded-lg bg-brand grid place-items-center">
-              <Car className="size-4 text-white" />
-            </div>
-            <span className="font-bold text-foreground">ParkEase</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link
-              to="/login"
-              className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Sign in
-            </Link>
-            <Link
-              to="/register"
-              className="px-4 py-2 rounded-lg bg-brand text-white text-sm font-medium hover:opacity-90 transition-opacity"
-            >
-              Get started
-            </Link>
-          </div>
+      {/* Navbar */}
+      <nav className="glass-nav sticky top-0 z-50 px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Car className="w-8 h-8 text-brand-purple" />
+          <span className="text-2xl font-bold bg-clip-text text-transparent bg-[var(--brand-gradient)]">ParkEase</span>
+        </div>
+        <div className="hidden md:flex items-center gap-8 text-sm font-medium text-white/70">
+          <a href="#features" className="hover:text-white transition-colors">Features</a>
+          <a href="#how-it-works" className="hover:text-white transition-colors">How it Works</a>
+          <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
+        </div>
+        <div className="flex items-center gap-4">
+          <Link to="/login" className="hidden md:block text-sm font-medium text-white/80 hover:text-white transition-colors">Sign In</Link>
+          <Link to="/register">
+            <GlassButton variant="primary" className="py-2 px-6 text-sm">Get Started</GlassButton>
+          </Link>
         </div>
       </nav>
 
-      {/* ── Hero ────────────────────────────────────────── */}
-      <section className="relative overflow-hidden bg-sidebar-gradient text-white py-24 px-4">
-        {/* Decorative blobs */}
-        <div className="pointer-events-none absolute -top-20 -right-20 size-72 rounded-full bg-white/10 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-20 -left-20 size-72 rounded-full bg-white/10 blur-3xl" />
-
-        <div className="relative max-w-4xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 bg-white/15 backdrop-blur rounded-full px-4 py-1.5 text-sm mb-6">
-            <MapPin className="size-3.5" />
-            Smart Peer-to-Peer Parking Platform
-          </div>
-
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold leading-tight mb-6">
-            Park smarter.<br />
-            Earn from your space.
-          </h1>
-
-          <p className="text-lg text-white/85 max-w-2xl mx-auto mb-10 leading-relaxed">
-            ParkEase connects drivers with private parking owners for affordable,
-            flexible, and secure parking — right where you need it.
-          </p>
-
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link
-              to="/register"
-              className="flex items-center gap-2 px-8 py-3.5 rounded-xl bg-white text-brand font-semibold text-sm hover:bg-white/90 shadow-lg transition-all"
-            >
-              Find Parking <ArrowRight className="size-4" />
-            </Link>
-            <Link
-              to="/register"
-              className="flex items-center gap-2 px-8 py-3.5 rounded-xl border border-white/40 text-white font-semibold text-sm hover:bg-white/10 transition-all"
-            >
-              List Your Space
-            </Link>
-          </div>
-
-          {/* Stats row */}
-          <div className="mt-16 grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {STATS.map(({ value, label }) => (
-              <div
-                key={label}
-                className="rounded-2xl bg-white/10 backdrop-blur px-4 py-5 text-center"
-              >
-                <p className="text-2xl font-bold">{value}</p>
-                <p className="text-sm text-white/75 mt-1">{label}</p>
-              </div>
-            ))}
-          </div>
+      {/* Hero */}
+      <section className="relative pt-32 pb-20 px-6 flex flex-col items-center text-center z-10 min-h-[90vh] justify-center">
+        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-brand-purple/10 border border-brand-purple/20 text-brand-purple text-sm font-medium mb-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+          🚗 Smart P2P Parking Platform
         </div>
-      </section>
-
-      {/* ── Features ────────────────────────────────────── */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 py-20">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold text-foreground mb-3">
-            Everything you need
-          </h2>
-          <p className="text-muted-foreground max-w-xl mx-auto">
-            Built for drivers and parking owners alike — with privacy, security, and simplicity at its core.
-          </p>
+        
+        <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6 max-w-4xl leading-tight animate-in fade-in slide-in-from-bottom-6 duration-700 delay-100 bg-clip-text text-transparent bg-[var(--brand-gradient)]">
+          Park Smarter.<br />Earn From Your Space.
+        </h1>
+        
+        <p className="text-xl text-white/60 max-w-2xl mb-10 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-200">
+          ParkEase connects drivers with private parking owners for affordable, flexible, and secure parking — right where you need it.
+        </p>
+        
+        <div className="flex flex-col sm:flex-row gap-4 mb-20 animate-in fade-in slide-in-from-bottom-10 duration-700 delay-300">
+          <Link to="/seeker/map">
+            <GlassButton variant="primary" className="w-full sm:w-auto text-lg px-8 py-4">Find Parking →</GlassButton>
+          </Link>
+          <Link to="/register">
+            <GlassButton variant="ghost" className="w-full sm:w-auto text-lg px-8 py-4 border border-white/20">List Your Space</GlassButton>
+          </Link>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {FEATURES.map(({ icon: Icon, title, desc }) => (
-            <div
-              key={title}
-              className="rounded-2xl bg-card p-6 ring-1 ring-border shadow-card hover:shadow-float transition-shadow"
-            >
-              <div className="size-10 rounded-xl bg-brand/10 grid place-items-center mb-4">
-                <Icon className="size-5 text-brand" />
-              </div>
-              <h3 className="font-semibold text-foreground mb-2">{title}</h3>
-              <p className="text-sm text-muted-foreground leading-relaxed">{desc}</p>
-            </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl w-full animate-in fade-in duration-1000 delay-500">
+          {['2,400+ Spaces', '15,000+ Drivers', '₹12M+ Saved', '4.8★ Rating'].map((stat, i) => (
+            <GlassCard key={i} className="py-4 px-6 text-center">
+              <span className="text-lg font-bold text-brand-cyan">{stat}</span>
+            </GlassCard>
           ))}
         </div>
       </section>
 
-      {/* ── How it works ────────────────────────────────── */}
-      <section className="bg-muted py-20 px-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-foreground mb-3">How it works</h2>
-            <p className="text-muted-foreground">Three simple steps to your perfect parking spot.</p>
+      {/* Features */}
+      <section id="features" className="py-24 px-6 relative z-10">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">Why Choose ParkEase?</h2>
+            <p className="text-white/60 max-w-2xl mx-auto">Everything you need for a seamless parking experience, whether you're parking or hosting.</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {STEPS.map(({ step, title, desc }, i) => (
-              <div key={step} className="relative text-center">
-                {i < STEPS.length - 1 && (
-                  <div className="hidden md:block absolute top-6 left-[60%] w-[80%] h-px bg-border" />
-                )}
-                <div className="size-12 rounded-full bg-brand text-white font-bold text-sm grid place-items-center mx-auto mb-4 relative z-10">
-                  {step}
+          <div className="grid md:grid-cols-3 gap-6">
+            {[
+              { icon: MapPin, title: 'Find Nearby Parking', desc: 'Instantly locate available spaces around your destination.' },
+              { icon: Shield, title: 'Privacy Protected', desc: 'Exact locations revealed only after confirmed booking.' },
+              { icon: Clock, title: 'Flexible Booking', desc: 'Book by the hour, day, or month with live availability.' },
+              { icon: CreditCard, title: 'Secure Payments', desc: 'Fast, secure transactions powered by Razorpay.' },
+              { icon: Star, title: 'Verified Spaces', desc: 'Every parking space and owner is KYC verified.' },
+              { icon: DollarSign, title: 'Earn as Owner', desc: 'Turn your empty driveway into a passive income stream.' },
+            ].map((feature, i) => (
+              <GlassCard key={i} hover className="p-8">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-purple to-brand-pink flex items-center justify-center mb-6">
+                  <feature.icon className="w-6 h-6 text-white" />
                 </div>
-                <h3 className="font-semibold text-foreground mb-2">{title}</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">{desc}</p>
+                <h3 className="text-xl font-semibold mb-3">{feature.title}</h3>
+                <p className="text-white/60 leading-relaxed">{feature.desc}</p>
+              </GlassCard>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* How it Works */}
+      <section id="how-it-works" className="py-24 px-6 relative z-10 bg-white/[0.02] border-y border-white/5">
+        <div className="max-w-7xl mx-auto text-center">
+          <h2 className="text-3xl md:text-4xl font-bold mb-16">How It Works</h2>
+          <div className="grid md:grid-cols-3 gap-12 relative">
+            <div className="hidden md:block absolute top-12 left-[20%] right-[20%] h-0.5 bg-gradient-to-r from-brand-purple/0 via-brand-purple/50 to-brand-purple/0"></div>
+            {[
+              { step: '01', title: 'Search', desc: 'Enter your destination and find available spaces nearby.' },
+              { step: '02', title: 'Book', desc: 'Choose your dates, vehicle type, and pay securely.' },
+              { step: '03', title: 'Park', desc: 'Navigate to the exact location and park hassle-free.' },
+            ].map((step, i) => (
+              <div key={i} className="relative z-10 flex flex-col items-center">
+                <div className="w-24 h-24 rounded-full bg-bg-primary border-2 border-brand-purple flex items-center justify-center text-3xl font-bold text-brand-purple mb-6 shadow-glow">
+                  {step.step}
+                </div>
+                <h3 className="text-2xl font-semibold mb-3">{step.title}</h3>
+                <p className="text-white/60 max-w-xs">{step.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── CTA banner ──────────────────────────────────── */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 py-20">
-        <div className="rounded-3xl bg-sidebar-gradient text-white p-10 md:p-14 text-center relative overflow-hidden">
-          <div className="pointer-events-none absolute -top-10 -right-10 size-48 rounded-full bg-white/10 blur-2xl" />
-          <h2 className="text-3xl md:text-4xl font-bold mb-4 relative">
-            Ready to get started?
-          </h2>
-          <p className="text-white/80 mb-8 max-w-lg mx-auto relative">
-            Join thousands of drivers and space owners on ParkEase today.
-          </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 relative">
-            <Link
-              to="/register"
-              className="px-8 py-3.5 rounded-xl bg-white text-brand font-semibold text-sm hover:bg-white/90 shadow-lg transition-all"
-            >
-              Create a free account
-            </Link>
-            <Link
-              to="/login"
-              className="text-white/80 text-sm font-medium hover:text-white transition-colors"
-            >
-              Already have an account? Sign in →
-            </Link>
-          </div>
-        </div>
+      {/* CTA */}
+      <section className="py-24 px-6 relative z-10">
+        <GlassCard className="max-w-4xl mx-auto p-12 text-center border-brand-purple/30 bg-brand-purple/5">
+          <h2 className="text-4xl font-bold mb-6">Ready to get started?</h2>
+          <p className="text-xl text-white/60 mb-8 max-w-2xl mx-auto">Join thousands of users already saving time and money with ParkEase.</p>
+          <Link to="/register">
+            <GlassButton variant="primary" className="text-lg px-10 py-4">Create Free Account</GlassButton>
+          </Link>
+        </GlassCard>
       </section>
 
-      {/* ── Footer ──────────────────────────────────────── */}
-      <footer className="border-t border-border py-8 px-4">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+      {/* Footer */}
+      <footer className="border-t border-white/10 py-12 px-6 relative z-10">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-2">
-            <div className="size-7 rounded-lg bg-brand grid place-items-center">
-              <Car className="size-3.5 text-white" />
-            </div>
-            <span className="font-semibold text-foreground text-sm">ParkEase</span>
+            <Car className="w-6 h-6 text-brand-purple" />
+            <span className="text-xl font-bold">ParkEase</span>
           </div>
-          <p className="text-xs text-muted-foreground">
-            © {new Date().getFullYear()} ParkEase. Smart P2P Parking Platform.
-          </p>
-          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-            <Link to="/login" className="hover:text-foreground">Sign in</Link>
-            <Link to="/register" className="hover:text-foreground">Register</Link>
+          <p className="text-white/40 text-sm">© {new Date().getFullYear()} ParkEase. All rights reserved.</p>
+          <div className="flex gap-6 text-sm text-white/60">
+            <Link to="/login" className="hover:text-white transition-colors">Sign In</Link>
+            <Link to="/register" className="hover:text-white transition-colors">Register</Link>
           </div>
         </div>
       </footer>
     </div>
-  )
-}
+  );
+};

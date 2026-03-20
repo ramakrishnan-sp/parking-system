@@ -29,7 +29,7 @@ A production-ready full-stack web application connecting drivers with private pa
 | Auth       | python-jose JWT, passlib bcrypt                 |
 | Payments   | Stripe Python SDK                               |
 | SMS        | Twilio                                          |
-| Frontend   | React 18, Vite 5, Tailwind CSS 3, React Router  |
+| Frontend   | React, Vite, Tailwind CSS, React Router        |
 | State      | Zustand (persisted)                             |
 | Maps       | Leaflet + OpenStreetMap (free, no API key)      |
 | Containers | Docker Compose                                  |
@@ -40,8 +40,7 @@ A production-ready full-stack web application connecting drivers with private pa
 
 ### Prerequisites
 - Docker Desktop with Compose v2
-- A Stripe account (test keys)
-- A Google Maps API key
+- A Razorpay account (test keys)
 - (Optional) Twilio account for SMS OTP
 
 ### 1. Clone and configure
@@ -73,9 +72,8 @@ SMTP_PASSWORD=app-password
 Edit `frontend/.env`:
 
 ```env
-VITE_API_URL=http://localhost:8000/api/v1
-VITE_GOOGLE_MAPS_API_KEY=AIza...
-VITE_STRIPE_PUBLISHABLE_KEY=pk_test_...
+VITE_API_URL=http://localhost:8000
+VITE_RAZORPAY_KEY_ID=rzp_test_...
 ```
 
 ### 2. Run with Docker
@@ -86,9 +84,9 @@ docker compose up --build
 
 | Service  | URL                          |
 |----------|------------------------------|
-| Frontend | http://localhost:5173        |
+| Frontend | http://localhost:3000        |
 | Backend  | http://localhost:8000        |
-| API Docs | http://localhost:8000/docs   |
+| API Docs | http://localhost:8000/api/docs |
 | PgAdmin  | http://localhost:5432 (psql) |
 
 The database schema is applied automatically on first startup.
@@ -96,7 +94,7 @@ The database schema is applied automatically on first startup.
 ### 3. Default admin account
 
 ```
-Email:    admin@parkease.com
+Email:    admin@parkingsystem.com
 Password: Admin@1234
 ```
 

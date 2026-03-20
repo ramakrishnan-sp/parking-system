@@ -1,157 +1,79 @@
-import { Bell, Search, Settings, Menu } from 'lucide-react'
-import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '../ui/dropdown-menu'
-import { Avatar, AvatarFallback } from '../ui/avatar'
-import { ThemeToggle } from './ThemeToggle'
-import { ColorThemePicker } from './ColorThemePicker'
-import useAuthStore from '../../store/authStore'
-import { getMyNotifications } from '../../api/users'
+import { Menu, Bell, Search } from 'lucide-react';
+import { useAuthStore } from '@/store/authStore';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import * as Avatar from '@radix-ui/react-avatar';
+import { Link } from 'react-router-dom';
 
-export function Topbar({ onMenuClick }) {
-  const { user } = useAuthStore()
-  const [q, setQ] = useState('')
-  const [unreadCount, setUnreadCount] = useState(0)
-
-  useEffect(() => {
-    if (!user) return
-    getMyNotifications()
-      .then((r) => {
-        const unread = r.data.filter((n) => !n.is_read).length
-        setUnreadCount(unread)
-      })
-      .catch(() => {})
-  }, [user])
-
-  const initials = user?.full_name
-    ?.split(' ')
-    .map((n) => n[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase() ?? '?'
-
-  const roleLabel = {
-    seeker: 'Seeker',
-    owner: 'Owner',
-    admin: 'Admin',
-  }[user?.user_type] ?? ''
+export const Topbar = ({ toggleSidebar }) => {
+  const { user, logout } = useAuthStore();
 
   return (
-    <header className="sticky top-0 z-30 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border mb-6">
-      <div className="h-16 px-4 flex items-center justify-between gap-3">
-        {/* Mobile hamburger */}
-        <button
-          onClick={onMenuClick}
-          className="lg:hidden rounded-full p-2 hover:bg-muted transition-colors"
-          aria-label="Open menu"
+    <header className="h-16 glass-nav flex items-center justify-between px-4 lg:px-8 sticky top-0 z-30">
+      <div className="flex items-center">
+        <button 
+          onClick={toggleSidebar}
+          className="p-2 mr-4 text-white/70 hover:text-white lg:hidden rounded-lg hover:bg-white/5"
         >
-          <Menu className="size-5" />
+          <Menu className="w-5 h-5" />
         </button>
-
-        {/* Search */}
-        <div className="flex-1 max-w-sm">
-          <label className="relative block">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-              <Search className="size-4" />
-            </span>
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search parking, bookings…"
-              className="w-full rounded-full border border-border bg-background pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50"
-            />
-          </label>
-        </div>
-
-        {/* Right actions */}
-        <div className="flex items-center gap-1.5">
-          {/* Notifications */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="relative rounded-full p-2 hover:bg-muted transition-colors focus:outline-none">
-                <Bell className="size-5" />
-                {unreadCount > 0 && (
-                  <span className="absolute right-1 top-1 flex items-center justify-center bg-red-500 text-white text-[10px] rounded-full h-4 min-w-4 px-1">
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </span>
-                )}
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64">
-              <DropdownMenuLabel>Notifications</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {unreadCount === 0
-                ? <DropdownMenuItem className="text-muted-foreground">No new notifications</DropdownMenuItem>
-                : <DropdownMenuItem asChild>
-                    <Link to="/profile">View all notifications</Link>
-                  </DropdownMenuItem>
-              }
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* Settings */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="rounded-full p-2 hover:bg-muted transition-colors focus:outline-none">
-                <Settings className="size-5" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-60">
-              <DropdownMenuLabel>Settings</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <div className="px-2 py-1.5">
-                <ThemeToggle />
-              </div>
-              <ColorThemePicker />
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* User avatar */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="rounded-full p-1 hover:bg-muted transition-colors focus:outline-none">
-                {user?.profile_photo_url ? (
-                  <img
-                    src={user.profile_photo_url}
-                    alt="Profile"
-                    className="size-8 rounded-full object-cover"
-                  />
-                ) : (
-                  <Avatar className="size-8">
-                    <AvatarFallback className="bg-brand text-white text-xs font-bold">
-                      {initials}
-                    </AvatarFallback>
-                  </Avatar>
-                )}
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>
-                <div className="flex flex-col gap-0.5">
-                  <span className="font-semibold text-sm truncate">{user?.full_name}</span>
-                  <span className="text-xs text-muted-foreground truncate">{user?.email}</span>
-                  <span className="text-xs text-brand font-medium">{roleLabel}</span>
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link to="/profile">Profile &amp; Settings</Link>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive" asChild>
-                <Link to="/login">Sign out</Link>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+        
+        <div className="hidden md:flex items-center bg-white/5 border border-white/10 rounded-full px-4 py-1.5 focus-within:border-brand-purple/50 focus-within:ring-1 focus-within:ring-brand-purple/50 transition-all">
+          <Search className="w-4 h-4 text-white/40 mr-2" />
+          <input 
+            type="text" 
+            placeholder="Search..." 
+            className="bg-transparent border-none outline-none text-sm text-white placeholder:text-white/40 w-64"
+          />
         </div>
       </div>
+
+      <div className="flex items-center space-x-4">
+        <button className="p-2 text-white/70 hover:text-white rounded-full hover:bg-white/5 relative">
+          <Bell className="w-5 h-5" />
+          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-brand-pink rounded-full"></span>
+        </button>
+
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger asChild>
+            <button className="outline-none">
+              <Avatar.Root className="inline-flex items-center justify-center align-middle overflow-hidden w-8 h-8 rounded-full bg-brand-purple/20 border border-brand-purple/50">
+                <Avatar.Image
+                  className="w-full h-full object-cover"
+                  src={user?.profile_photo_url}
+                  alt={user?.full_name}
+                />
+                <Avatar.Fallback className="w-full h-full flex items-center justify-center text-sm font-medium text-brand-purple">
+                  {user?.full_name?.charAt(0).toUpperCase() || 'U'}
+                </Avatar.Fallback>
+              </Avatar.Root>
+            </button>
+          </DropdownMenu.Trigger>
+
+          <DropdownMenu.Portal>
+            <DropdownMenu.Content 
+              className="min-w-[220px] glass-panel p-2 mt-2 mr-4 shadow-xl animate-in fade-in zoom-in-95 z-50"
+              sideOffset={5}
+            >
+              <div className="px-2 py-2 border-b border-white/10 mb-2">
+                <p className="text-sm font-medium text-white">{user?.full_name}</p>
+                <p className="text-xs text-white/50 truncate">{user?.email}</p>
+              </div>
+              
+              <DropdownMenu.Item className="outline-none">
+                <Link to="/profile" className="flex items-center px-2 py-2 text-sm text-white/80 hover:text-white hover:bg-white/10 rounded-md cursor-pointer">
+                  Profile Settings
+                </Link>
+              </DropdownMenu.Item>
+              
+              <DropdownMenu.Item className="outline-none" onSelect={logout}>
+                <div className="flex items-center px-2 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-md cursor-pointer mt-1">
+                  Sign Out
+                </div>
+              </DropdownMenu.Item>
+            </DropdownMenu.Content>
+          </DropdownMenu.Portal>
+        </DropdownMenu.Root>
+      </div>
     </header>
-  )
-}
+  );
+};

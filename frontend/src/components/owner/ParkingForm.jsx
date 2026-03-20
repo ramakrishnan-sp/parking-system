@@ -1,207 +1,163 @@
-import { useState } from 'react'
-import { useForm } from 'react-hook-form'
-import { MapPin } from 'lucide-react'
-import { toast } from 'sonner'
-import { createParking, updateParking } from '../../api/parking'
-import { cn } from '../../lib/utils'
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { GlassInput } from '@/components/common/GlassInput';
+import { GlassButton } from '@/components/common/GlassButton';
+import { VEHICLE_TYPES } from '@/lib/constants';
+import { toast } from 'sonner';
 
-const VEHICLE_TYPES = [
-  { value: 'all',  label: 'All vehicles' },
-  { value: 'car',  label: 'Cars only' },
-  { value: 'bike', label: 'Bikes only' },
-  { value: 'ev',   label: 'EVs only' },
-]
-const PROPERTY_TYPES = [
-  { value: 'house',     label: 'House' },
-  { value: 'apartment', label: 'Apartment' },
-  { value: 'shop',      label: 'Shop' },
-  { value: 'office',    label: 'Office' },
-]
-const AMENITY_OPTIONS = [
-  'CCTV', 'Covered', 'Security Guard', 'EV Charging',
-  '24/7 Access', 'Well-lit', 'Wheelchair Access',
-]
+export function ParkingForm({ initialData, onSubmit, onCancel, isLoading }) {
+  const [isFetchingLocation, setIsFetchingLocation] = useState(false);
 
-export default function ParkingForm({ initialData, onSuccess, onCancel }) {
-  const isEdit = !!initialData?.id
-  const [loading, setLoading] = useState(false)
-  const [amenities, setAmenities] = useState(initialData?.amenities || [])
-  const [photos, setPhotos] = useState([])
+  const defaultVehicleTypes = (() => {
+    if (!initialData?.vehicle_type_allowed) return [];
+    if (initialData.vehicle_type_allowed === 'all') return Object.values(VEHICLE_TYPES);
+    return [initialData.vehicle_type_allowed];
+  })();
 
-  const { register, handleSubmit, formState: { errors } } = useForm({
-    defaultValues: initialData
-      ? {
-          title: initialData.title,
-          description: initialData.description,
-          price_per_hour: initialData.price_per_hour,
-          total_slots: initialData.total_slots,
-          vehicle_type_allowed: initialData.vehicle_type_allowed || 'all',
-          property_type: initialData.property_type,
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    trigger,
+    formState: { errors },
+  } = useForm({
+    defaultValues: {
+      title: initialData?.title ?? '',
+      description: initialData?.description ?? '',
+      exact_latitude: initialData?.exact_latitude ?? '',
+      exact_longitude: initialData?.exact_longitude ?? '',
+      price_per_hour: initialData?.price_per_hour ?? '',
+      total_slots: initialData?.total_slots ?? 1,
+      vehicle_type_allowed: defaultVehicleTypes,
+    },
+    mode: 'onTouched',
+  });
+
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported in this browser');
+      return;
+    }
+
+    setIsFetchingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setValue('exact_latitude', position.coords.latitude, { shouldValidate: true, shouldDirty: true });
+        setValue('exact_longitude', position.coords.longitude, { shouldValidate: true, shouldDirty: true });
+        trigger(['exact_latitude', 'exact_longitude']);
+        toast.success('Location captured');
+        setIsFetchingLocation(false);
+      },
+      (error) => {
+        const isInsecureContext = typeof window !== 'undefined' && window.isSecureContext === false;
+        if (isInsecureContext) {
+          toast.error('Location requires HTTPS (or localhost)');
+        } else {
+          toast.error(error?.message || 'Could not get your location');
         }
-      : { vehicle_type_allowed: 'all', total_slots: 1 },
-  })
-
-  const toggleAmenity = (a) =>
-    setAmenities((prev) => prev.includes(a) ? prev.filter((x) => x !== a) : [...prev, a])
-
-  const onSubmit = async (data) => {
-    setLoading(true)
-    try {
-      if (isEdit) {
-        await updateParking(initialData.id, { ...data, amenities })
-        toast.success('Parking space updated!')
-      } else {
-        const fd = new FormData()
-        Object.entries({ ...data, amenities: JSON.stringify(amenities) }).forEach(([k, v]) =>
-          fd.append(k, v)
-        )
-        photos.forEach((f) => fd.append('photos', f))
-        await createParking(fd)
-        toast.success('Submitted for admin approval!')
-      }
-      onSuccess?.()
-    } catch {} finally { setLoading(false) }
-  }
-
-  const input = 'h-10 w-full rounded-md bg-background ring-1 ring-border px-3 text-sm outline-none focus:ring-2 focus:ring-brand/50'
+        setIsFetchingLocation(false);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-      {/* Title */}
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium">Title *</label>
-        <input {...register('title', { required: 'Title is required' })}
-          className={cn(input, errors.title && 'ring-destructive')}
-          placeholder="e.g. Safe parking near MG Road" />
-        {errors.title && <p className="text-xs text-destructive">{errors.title.message}</p>}
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <GlassInput
+        label="Title"
+        placeholder="e.g., Secure Covered Parking near Station"
+        {...register('title', { required: 'Title is required' })}
+        error={errors.title?.message}
+      />
+      
+      <div className="space-y-1">
+        <label className="block text-sm font-medium text-white/80 ml-1">Description</label>
+        <textarea
+          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-brand-purple/50 focus:border-brand-purple/50 transition-all resize-none h-24"
+          placeholder="Describe your parking space..."
+          {...register('description', { required: 'Description is required' })}
+        />
+        {errors.description && <p className="text-red-400 text-xs mt-1 ml-1">{errors.description.message}</p>}
       </div>
 
-      {/* Description */}
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium">Description</label>
-        <textarea {...register('description')} rows={3}
-          className="w-full rounded-md bg-background ring-1 ring-border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/50 resize-none"
-          placeholder="Describe your space…" />
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-4">
+          <label className="block text-sm font-medium text-white/80 ml-1">Coordinates</label>
+          <GlassButton
+            type="button"
+            variant="secondary"
+            onClick={handleUseCurrentLocation}
+            isLoading={isFetchingLocation}
+            disabled={isLoading}
+            className="shrink-0"
+          >
+            Use current location
+          </GlassButton>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <GlassInput
+            label="Latitude"
+            type="number"
+            step="any"
+            placeholder="e.g., 19.0760"
+            {...register('exact_latitude', { required: 'Latitude is required', valueAsNumber: true })}
+            error={errors.exact_latitude?.message}
+          />
+          <GlassInput
+            label="Longitude"
+            type="number"
+            step="any"
+            placeholder="e.g., 72.8777"
+            {...register('exact_longitude', { required: 'Longitude is required', valueAsNumber: true })}
+            error={errors.exact_longitude?.message}
+          />
+        </div>
       </div>
 
-      {/* Price + Slots */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium">Price/hr (₹) *</label>
-          <input {...register('price_per_hour', { required: true, min: 1 })}
-            type="number" min="1" step="0.5" className={input} />
-        </div>
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium">Total slots *</label>
-          <input {...register('total_slots', { required: true, min: 1 })}
-            type="number" min="1" className={input} />
-        </div>
+        <GlassInput
+          label="Price per Hour (₹)"
+          type="number"
+          min="0"
+          {...register('price_per_hour', { required: 'Price is required', valueAsNumber: true })}
+          error={errors.price_per_hour?.message}
+        />
+        <GlassInput
+          label="Total Slots"
+          type="number"
+          min="1"
+          {...register('total_slots', { required: 'Slots are required', valueAsNumber: true })}
+          error={errors.total_slots?.message}
+        />
       </div>
 
-      {/* Location (new only) */}
-      {!isEdit && (
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Latitude *</label>
-              <input {...register('exact_latitude', { required: true })}
-                type="number" step="any" className={input} placeholder="13.0827" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Longitude *</label>
-              <input {...register('exact_longitude', { required: true })}
-                type="number" step="any" className={input} placeholder="80.2707" />
-            </div>
-          </div>
-          <p className="text-xs text-yellow-700 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg px-3 py-2 flex items-center gap-1.5">
-            <MapPin className="size-3 shrink-0" />
-            Exact coordinates are kept private. Seekers see a masked location.
-          </p>
-        </div>
-      )}
-
-      {/* Vehicle type */}
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium">Allowed vehicles</label>
-        <div className="flex gap-2 flex-wrap">
-          {VEHICLE_TYPES.map((v) => (
-            <label key={v.value} className="cursor-pointer">
-              <input {...register('vehicle_type_allowed')} type="radio" value={v.value} className="sr-only" />
-              <span className="px-3 py-1.5 rounded-full text-sm border border-border hover:border-brand transition-colors">
-                {v.label}
-              </span>
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-white/80 ml-1">Allowed Vehicles</label>
+        <div className="flex flex-wrap gap-3">
+          {Object.values(VEHICLE_TYPES).map(type => (
+            <label key={type} className="flex items-center gap-2 text-sm text-white/80 cursor-pointer">
+              <input
+                type="checkbox"
+                value={type}
+                {...register('vehicle_type_allowed', { required: 'Select at least one vehicle type' })}
+                className="rounded border-white/20 bg-white/5 text-brand-purple focus:ring-brand-purple/50"
+              />
+              <span className="capitalize">{type}</span>
             </label>
           ))}
         </div>
+        {errors.vehicle_type_allowed && <p className="text-red-400 text-xs mt-1 ml-1">{errors.vehicle_type_allowed.message}</p>}
       </div>
 
-      {/* Property type */}
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium">Property type</label>
-        <select {...register('property_type')} className={cn(input, 'h-10')}>
-          <option value="">Select…</option>
-          {PROPERTY_TYPES.map((p) => (
-            <option key={p.value} value={p.value}>{p.label}</option>
-          ))}
-        </select>
-      </div>
-
-      {/* Amenities */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium">Amenities</label>
-        <div className="flex flex-wrap gap-2">
-          {AMENITY_OPTIONS.map((a) => (
-            <button
-              key={a} type="button" onClick={() => toggleAmenity(a)}
-              className={cn(
-                'px-3 py-1.5 rounded-full text-sm transition-colors',
-                amenities.includes(a) ? 'bg-brand text-white' : 'bg-muted text-muted-foreground hover:bg-muted/80'
-              )}
-            >
-              {a}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Photos (new only) */}
-      {!isEdit && (
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium">Photos (up to 8)</label>
-          <input
-            type="file" multiple accept="image/*"
-            onChange={(e) => setPhotos(Array.from(e.target.files).slice(0, 8))}
-            className="w-full rounded-md bg-background ring-1 ring-border px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-brand/10 file:text-brand file:text-xs file:font-medium"
-          />
-          {photos.length > 0 && (
-            <div className="flex gap-2 flex-wrap mt-2">
-              {photos.map((f, i) => (
-                <div key={i} className="relative">
-                  <img src={URL.createObjectURL(f)} alt="" className="size-16 rounded-lg object-cover" />
-                  {i === 0 && (
-                    <span className="absolute inset-x-0 bottom-0 text-center text-[10px] bg-brand text-white rounded-b-lg">Cover</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Buttons */}
-      <div className="flex gap-3 pt-2">
-        {onCancel && (
-          <button type="button" onClick={onCancel}
-            className="flex-1 h-10 rounded-lg border border-border text-sm font-medium hover:bg-muted transition-colors">
-            Cancel
-          </button>
-        )}
-        <button type="submit" disabled={loading}
-          className="flex-1 h-10 rounded-lg bg-brand text-white text-sm font-medium flex items-center justify-center gap-2 hover:opacity-90 disabled:opacity-50 transition-all">
-          {loading && <span className="size-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />}
-          {loading ? 'Saving…' : isEdit ? 'Save Changes' : 'Submit for Approval'}
-        </button>
+      <div className="flex gap-3 pt-4">
+        <GlassButton type="button" variant="secondary" className="flex-1" onClick={onCancel} disabled={isLoading}>
+          Cancel
+        </GlassButton>
+        <GlassButton type="submit" className="flex-1" isLoading={isLoading}>
+          {initialData ? 'Update Space' : 'Add Space'}
+        </GlassButton>
       </div>
     </form>
-  )
+  );
 }

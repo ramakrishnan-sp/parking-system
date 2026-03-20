@@ -1,140 +1,73 @@
-import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { useState, useEffect } from 'react'
-import {
-  MapPin, CalendarCheck, Building2, LayoutDashboard,
-  User, LogOut, ChevronFirst, ChevronLast,
-} from 'lucide-react'
-import { cn } from '../../lib/utils'
-import useAuthStore from '../../store/authStore'
-import { logoutUser } from '../../api/auth'
-import { toast } from 'sonner'
+import { NavLink } from 'react-router-dom';
+import { useAuthStore } from '@/store/authStore';
+import { USER_TYPES } from '@/lib/constants';
+import { MapPin, Calendar, LayoutDashboard, User, LogOut, Menu, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useState } from 'react';
 
-const NAV_BY_ROLE = {
-  seeker: [
-    { href: '/map',      label: 'Find Parking', icon: MapPin },
-    { href: '/bookings', label: 'My Bookings',  icon: CalendarCheck },
-    { href: '/profile',  label: 'Profile',      icon: User },
-  ],
-  owner: [
-    { href: '/owner',    label: 'My Spaces',    icon: Building2 },
-    { href: '/profile',  label: 'Profile',      icon: User },
-  ],
-  admin: [
-    { href: '/admin',    label: 'Dashboard',    icon: LayoutDashboard },
-    { href: '/profile',  label: 'Profile',      icon: User },
-  ],
-}
+export const Sidebar = ({ isOpen, setIsOpen }) => {
+  const { user, logout } = useAuthStore();
+  
+  const links = [
+    { to: '/seeker/map', icon: MapPin, label: 'Find Parking', roles: [USER_TYPES.SEEKER] },
+    { to: '/seeker/bookings', icon: Calendar, label: 'My Bookings', roles: [USER_TYPES.SEEKER] },
+    { to: '/owner', icon: LayoutDashboard, label: 'Owner Dashboard', roles: [USER_TYPES.OWNER] },
+    { to: '/admin', icon: LayoutDashboard, label: 'Admin Dashboard', roles: [USER_TYPES.ADMIN] },
+    { to: '/profile', icon: User, label: 'Profile', roles: [USER_TYPES.SEEKER, USER_TYPES.OWNER, USER_TYPES.ADMIN] },
+  ];
 
-export function Sidebar({ mobileOpen, onClose }) {
-  const location = useLocation()
-  const navigate = useNavigate()
-  const { user, logout } = useAuthStore()
-  const [open, setOpen] = useState(true)
-
-  // Persist collapse state
-  useEffect(() => {
-    const saved = localStorage.getItem('parkease-sidebar-open')
-    if (saved !== null) setOpen(saved === '1')
-  }, [])
-  useEffect(() => {
-    localStorage.setItem('parkease-sidebar-open', open ? '1' : '0')
-  }, [open])
-
-  const navItems = NAV_BY_ROLE[user?.user_type] ?? []
-
-  const handleLogout = async () => {
-    const rt = localStorage.getItem('parkease_refresh_token')
-    try {
-      if (rt) await logoutUser(rt)
-    } catch {}
-    logout()
-    toast.success('Signed out successfully')
-    navigate('/login')
-  }
-
-  const isActive = (href) =>
-    location.pathname === href ||
-    (href !== '/' && location.pathname.startsWith(href + '/'))
+  const filteredLinks = links.filter(link => link.roles.includes(user?.user_type));
 
   return (
-    <aside
-      className={cn(
-        'bg-sidebar-gradient text-white flex flex-col h-full transition-[width] duration-300 shrink-0',
-        open ? 'w-52' : 'w-[72px]'
-      )}
-    >
-      {/* Header */}
-      <div className="flex items-center justify-between gap-2 px-4 py-5">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="size-9 rounded-xl bg-white/20 grid place-items-center font-bold text-sm shrink-0">
-            PE
-          </div>
-          {open && (
-            <span className="text-sm font-semibold truncate">ParkEase</span>
-          )}
+    <>
+      <div className={cn(
+        "fixed inset-y-0 left-0 z-40 w-64 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 glass-panel border-y-0 border-l-0 rounded-none flex flex-col",
+        isOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
+        <div className="h-16 flex items-center px-6 border-b border-white/10">
+          <MapPin className="w-6 h-6 text-brand-purple mr-2" />
+          <span className="text-xl font-bold bg-clip-text text-transparent bg-[var(--brand-gradient)]">ParkEase</span>
+          <button className="ml-auto lg:hidden text-white/70" onClick={() => setIsOpen(false)}>
+            <X className="w-5 h-5" />
+          </button>
         </div>
-        <button
-          aria-label={open ? 'Collapse sidebar' : 'Expand sidebar'}
-          onClick={() => setOpen((v) => !v)}
-          className="rounded-lg bg-white/20 p-1.5 hover:bg-white/30 shrink-0"
-        >
-          {open
-            ? <ChevronFirst className="size-4" />
-            : <ChevronLast  className="size-4" />
-          }
-        </button>
-      </div>
+        
+        <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+          {filteredLinks.map((link) => (
+            <NavLink
+              key={link.to}
+              to={link.to}
+              onClick={() => setIsOpen(false)}
+              className={({ isActive }) => cn(
+                "flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors",
+                isActive 
+                  ? "bg-brand-purple/20 text-brand-purple border border-brand-purple/30" 
+                  : "text-white/70 hover:bg-white/5 hover:text-white"
+              )}
+            >
+              <link.icon className="w-5 h-5 mr-3" />
+              {link.label}
+            </NavLink>
+          ))}
+        </nav>
 
-      {/* Nav */}
-      <nav className="flex-1 mt-1">
-        <ul className="flex flex-col gap-1 px-3">
-          {navItems.map(({ href, label, icon: Icon }) => {
-            const active = isActive(href)
-            return (
-              <li key={href}>
-                <Link
-                  to={href}
-                  onClick={onClose}
-                  className={cn(
-                    'flex items-center gap-3 rounded-xl px-3 py-3 transition-colors',
-                    active
-                      ? 'bg-white text-brand font-medium'
-                      : 'text-white/90 hover:bg-white/15'
-                  )}
-                >
-                  <Icon className={cn('size-5 shrink-0', active ? 'text-brand' : 'text-white')} />
-                  {open && <span className="text-sm">{label}</span>}
-                </Link>
-              </li>
-            )
-          })}
-        </ul>
-      </nav>
-
-      {/* Footer: tip + logout */}
-      <div className="px-3 pb-5 pt-2 space-y-2">
-        {open && (
-          <div className="rounded-2xl bg-white/10 p-3">
-            <p className="text-xs leading-5 text-white/80">
-              {user?.user_type === 'seeker'
-                ? 'Find and book nearby parking in seconds.'
-                : user?.user_type === 'owner'
-                ? 'Manage your spaces and track earnings.'
-                : 'Manage the platform from here.'}
-            </p>
-          </div>
-        )}
-        <button
-          onClick={handleLogout}
-          className={cn(
-            'flex items-center gap-3 rounded-xl px-3 py-2.5 w-full',
-            'text-white/80 hover:bg-white/15 transition-colors'
-          )}
-        >
-          <LogOut className="size-5 shrink-0" />
-          {open && <span className="text-sm">Sign out</span>}
-        </button>
+        <div className="p-4 border-t border-white/10">
+          <button
+            onClick={logout}
+            className="flex items-center w-full px-4 py-3 text-sm font-medium text-red-400 rounded-xl hover:bg-red-500/10 transition-colors"
+          >
+            <LogOut className="w-5 h-5 mr-3" />
+            Sign Out
+          </button>
+        </div>
       </div>
-    </aside>
-  )
-}
+      
+      {isOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-30 lg:hidden backdrop-blur-sm"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+    </>
+  );
+};

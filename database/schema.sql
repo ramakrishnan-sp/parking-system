@@ -318,7 +318,7 @@ VALUES (
     'admin@parkingsystem.com',
     '+910000000000',
     -- bcrypt hash of "Admin@1234" – CHANGE IN PRODUCTION
-    '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj3bp.3Lx3Oe',
+    '$2b$12$cNgcM6Yt1lCCsWQ6ruJv1OUvLSUVxDpd8zM32XDd7Hvbo6OsevxRm',
     'admin',
     TRUE
 );

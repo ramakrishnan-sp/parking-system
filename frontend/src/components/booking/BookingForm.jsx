@@ -1,225 +1,168 @@
-import { useState } from 'react'
-import { useForm } from 'react-hook-form'
-import { Calendar, Clock, Tag, CreditCard, Car } from 'lucide-react'
-import { toast } from 'sonner'
-import { createBooking } from '../../api/booking'
-import { createRazorpayOrder, verifyPayment } from '../../api/payment'
-import { BOOKING_PURPOSES, RAZORPAY_SCRIPT_URL } from '../../lib/constants'
+import { useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { GlassInput } from '../common/GlassInput';
+import { GlassButton } from '../common/GlassButton';
+import { BOOKING_PURPOSES } from '@/lib/constants';
+import { differenceInMinutes, parseISO } from 'date-fns';
+import { createBooking } from '@/api/booking';
+import { createRazorpayOrder, verifyPayment } from '@/api/payment';
+import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
 
-function calcHours(start, end) {
-  if (!start || !end) return 0
-  const diff = (new Date(end) - new Date(start)) / 3600000
-  return diff > 0 ? diff : 0
-}
+export const BookingForm = ({ space, onClose }) => {
+  const { register, handleSubmit, watch, formState: { errors } } = useForm({ mode: 'onTouched' });
+  const [total, setTotal] = useState(0);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const navigate = useNavigate();
 
-function loadRazorpayScript() {
-  return new Promise((resolve) => {
-    if (window.Razorpay) { resolve(true); return }
-    const s = document.createElement('script')
-    s.src = RAZORPAY_SCRIPT_URL
-    s.onload  = () => resolve(true)
-    s.onerror = () => resolve(false)
-    document.body.appendChild(s)
-  })
-}
+  const startTime = watch('start_time');
+  const endTime = watch('end_time');
 
-export default function BookingForm({ space, onSuccess, onCancel }) {
-  const [loading, setLoading] = useState(false)
-  const {
-    register, handleSubmit, watch,
-    formState: { errors },
-  } = useForm({ mode: 'onTouched', defaultValues: { purpose: 'office' } })
+  useEffect(() => {
+    if (startTime && endTime && space) {
+      const start = parseISO(startTime);
+      const end = parseISO(endTime);
+      const mins = differenceInMinutes(end, start);
+      if (mins > 0) {
+        const hours = Math.ceil(mins / 60);
+        setTotal(hours * space.price_per_hour);
+      } else {
+        setTotal(0);
+      }
+    }
+  }, [startTime, endTime, space]);
 
-  const startTime = watch('start_time')
-  const endTime   = watch('end_time')
-  const hours     = calcHours(startTime, endTime)
-  const total     = (hours * (parseFloat(space?.price_per_hour) || 0)).toFixed(2)
-
-  const now = new Date()
-  now.setMinutes(now.getMinutes() - now.getTimezoneOffset())
-  const minDateTime = now.toISOString().slice(0, 16)
-
-  // ── Edge case: 0 available slots ──────────────────────────
-  if (space?.available_slots === 0) {
-    return (
-      <div className="py-8 text-center space-y-3">
-        <div className="size-12 bg-destructive/10 rounded-2xl flex items-center justify-center mx-auto">
-          <Car className="size-6 text-destructive" />
-        </div>
-        <p className="font-semibold text-foreground">No slots available</p>
-        <p className="text-sm text-muted-foreground">This space is currently full. Try again later.</p>
-        <button
-          onClick={onCancel}
-          className="h-9 px-5 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-colors"
-        >
-          Back to map
-        </button>
-      </div>
-    )
-  }
+  const loadRazorpay = () => {
+    return new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
 
   const onSubmit = async (data) => {
-    if (hours <= 0) { toast.error('End time must be after start time'); return }
+    if (total <= 0) {
+      toast.error('End time must be after start time');
+      return;
+    }
 
-    setLoading(true)
+    setIsProcessing(true);
     try {
-      // 1. Create booking
-      const { data: booking } = await createBooking({
-        parking_id: space.id,
-        start_time: new Date(data.start_time).toISOString(),
-        end_time:   new Date(data.end_time).toISOString(),
-        purpose:    data.purpose,
-      })
-
-      // 2. Create Razorpay order
-      const { data: order } = await createRazorpayOrder(booking.id)
-
-      // 3. Load Razorpay checkout JS
-      const loaded = await loadRazorpayScript()
-      if (!loaded) {
-        toast.error('Could not load payment gateway. Check your internet connection.')
-        setLoading(false)
-        return
+      const resLoaded = await loadRazorpay();
+      if (!resLoaded) {
+        toast.error('Razorpay SDK failed to load. Are you online?');
+        return;
       }
 
-      // 4. Open Razorpay checkout
-      const rzp = new window.Razorpay({
-        key:         order.key_id,
-        amount:      order.amount,
-        currency:    order.currency || 'INR',
-        name:        'ParkEase',
-        description: `Booking: ${space.title}`,
-        order_id:    order.order_id,
-        theme: { color: getComputedStyle(document.documentElement).getPropertyValue('--brand').trim() || '#9333ea' },
-        handler: async (response) => {
+      // 1. Create booking
+      const bookingRes = await createBooking({
+        parking_id: space.id,
+        start_time: new Date(data.start_time).toISOString(),
+        end_time: new Date(data.end_time).toISOString(),
+        purpose: data.purpose,
+      });
+      const booking = bookingRes.data;
+
+      // 2. Create order
+      const orderRes = await createRazorpayOrder({ booking_id: booking.id });
+      const order = orderRes.data;
+
+      // 3. Open Razorpay
+      const options = {
+        key: order.key_id,
+        amount: order.amount,
+        currency: order.currency,
+        name: 'ParkEase',
+        description: `Booking for ${space.title}`,
+        order_id: order.order_id,
+        handler: async function (response) {
           try {
-            await verifyPayment(
-              booking.id,
-              response.razorpay_order_id,
-              response.razorpay_payment_id,
-              response.razorpay_signature,
-            )
-            toast.success('Booking confirmed! 🎉')
-            onSuccess?.(booking)
-          } catch {}
+            await verifyPayment({
+              booking_id: booking.id,
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            });
+            toast.success('Payment successful!');
+            navigate(`/seeker/booking/${booking.id}`);
+          } catch (err) {
+            toast.error('Payment verification failed');
+          }
+        },
+        prefill: {
+          name: 'User',
+          email: 'user@example.com',
+          contact: '9999999999',
+        },
+        theme: {
+          color: '#7c3aed',
         },
         modal: {
-          ondismiss: () => setLoading(false),
+          ondismiss: function () {
+            setIsProcessing(false);
+            toast.error('Payment cancelled');
+          },
         },
-      })
-      rzp.open()
-    } catch {
-      setLoading(false)
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Booking failed');
+      setIsProcessing(false);
     }
-  }
+  };
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      {/* Space summary */}
-      <div className="rounded-xl bg-brand/10 p-4">
-        <h4 className="font-semibold text-foreground">{space?.title}</h4>
-        <p className="text-sm text-brand font-medium">₹{space?.price_per_hour}/hr</p>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          {space?.available_slots} slot(s) available
-        </p>
+      <div className="bg-white/5 p-4 rounded-xl border border-white/10 mb-4">
+        <h4 className="font-semibold text-white">{space.title}</h4>
+        <p className="text-sm text-white/60">₹{space.price_per_hour}/hr</p>
       </div>
 
-      {/* Start time */}
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium flex items-center gap-1.5">
-          <Calendar className="size-3.5 text-muted-foreground" /> Start time
-        </label>
-        <input
+      <div className="grid grid-cols-2 gap-4">
+        <GlassInput
+          label="Start Time"
           type="datetime-local"
-          min={minDateTime}
-          className="h-10 w-full rounded-md bg-background ring-1 ring-border px-3 text-sm outline-none focus:ring-2 focus:ring-brand/50"
-          {...register('start_time', {
-            required: 'Start time is required',
-            validate: (v) => {
-              const diff = new Date(v) - new Date()
-              if (diff < 0) return 'Start time cannot be in the past'
-              if (diff < 5 * 60 * 1000) return 'Start time must be at least 5 minutes from now'
-              return true
-            },
-          })}
+          {...register('start_time', { required: 'Required' })}
+          error={errors.start_time?.message}
         />
-        {errors.start_time && <p className="text-xs text-destructive">{errors.start_time.message}</p>}
-      </div>
-
-      {/* End time */}
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium flex items-center gap-1.5">
-          <Clock className="size-3.5 text-muted-foreground" /> End time
-        </label>
-        <input
+        <GlassInput
+          label="End Time"
           type="datetime-local"
-          min={startTime || minDateTime}
-          className="h-10 w-full rounded-md bg-background ring-1 ring-border px-3 text-sm outline-none focus:ring-2 focus:ring-brand/50"
-          {...register('end_time', {
-            required: 'End time is required',
-            validate: (v, form) => {
-              if (!form.start_time) return true
-              const hrs = (new Date(v) - new Date(form.start_time)) / 3600000
-              if (hrs <= 0)   return 'End time must be after start time'
-              if (hrs < 0.5)  return 'Minimum booking duration is 30 minutes'
-              if (hrs > 72)   return 'Maximum booking duration is 72 hours'
-              return true
-            },
-          })}
+          {...register('end_time', { required: 'Required' })}
+          error={errors.end_time?.message}
         />
-        {errors.end_time && <p className="text-xs text-destructive">{errors.end_time.message}</p>}
       </div>
 
-      {/* Purpose */}
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium flex items-center gap-1.5">
-          <Tag className="size-3.5 text-muted-foreground" /> Purpose
-        </label>
+      <div>
+        <label className="block text-sm font-medium text-white/80 mb-1.5">Purpose</label>
         <select
-          className="h-10 w-full rounded-md bg-background ring-1 ring-border px-3 text-sm outline-none focus:ring-2 focus:ring-brand/50"
-          {...register('purpose', { required: true })}
+          {...register('purpose', { required: 'Required' })}
+          className="w-full bg-white/5 border border-white/15 rounded-[14px] px-4 py-3 text-white focus:outline-none focus:border-brand-purple focus:ring-1 focus:ring-brand-purple transition-all"
         >
-          {BOOKING_PURPOSES.map((p) => (
-            <option key={p.value} value={p.value}>{p.label}</option>
+          <option value="" className="bg-bg-secondary text-white">Select purpose</option>
+          {Object.values(BOOKING_PURPOSES).map(p => (
+            <option key={p} value={p} className="bg-bg-secondary text-white">{p.charAt(0).toUpperCase() + p.slice(1)}</option>
           ))}
         </select>
+        {errors.purpose && <p className="mt-1.5 text-sm text-red-400">{errors.purpose.message}</p>}
       </div>
 
-      {/* Amount preview */}
-      {hours > 0 && (
-        <div className="rounded-xl bg-muted p-3 flex items-center justify-between">
-          <div>
-            <p className="text-xs text-muted-foreground">Duration</p>
-            <p className="text-sm font-medium">{hours.toFixed(1)} hours</p>
-          </div>
-          <div className="text-right">
-            <p className="text-xs text-muted-foreground">Total</p>
-            <p className="text-lg font-bold text-brand">₹{total}</p>
-          </div>
-        </div>
-      )}
+      <div className="flex justify-between items-center py-4 border-t border-white/10 mt-4">
+        <span className="text-white/80 font-medium">Total Amount</span>
+        <span className="text-2xl font-bold text-brand-cyan">₹{total}</span>
+      </div>
 
-      {/* Actions */}
-      <div className="flex gap-3 pt-1">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="flex-1 h-10 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-colors"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          disabled={loading || hours <= 0}
-          className="flex-1 h-10 rounded-xl bg-brand text-white text-sm font-medium flex items-center justify-center gap-2 hover:opacity-90 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-        >
-          {loading
-            ? <span className="size-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-            : <CreditCard className="size-4" />
-          }
-          {loading ? 'Processing…' : `Pay ₹${total}`}
-        </button>
+      <div className="flex gap-3 pt-2">
+        <GlassButton type="button" variant="ghost" onClick={onClose} className="flex-1">Cancel</GlassButton>
+        <GlassButton type="submit" disabled={total <= 0 || isProcessing} className="flex-1">
+          {isProcessing ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : `Pay ₹${total}`}
+        </GlassButton>
       </div>
     </form>
-  )
-}
+  );
+};

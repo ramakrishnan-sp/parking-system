@@ -1,113 +1,196 @@
-import { useState, useEffect, useCallback } from 'react'
-import { CalendarCheck, ReceiptText, Clock, CheckCircle } from 'lucide-react'
-import { getMyBookings } from '../api/booking'
-import BookingCard from '../components/booking/BookingCard'
-import EmptyState from '../components/common/EmptyState'
-import { StatCardSkeleton, BookingCardSkeleton } from '../components/common/Skeleton'
-import StatCard from '../components/common/StatCard'
-import { cn } from '../lib/utils'
-
-const STATUS_TABS = [
-  { key: 'all',       label: 'All' },
-  { key: 'pending',   label: 'Pending' },
-  { key: 'confirmed', label: 'Confirmed' },
-  { key: 'active',    label: 'Active' },
-  { key: 'completed', label: 'Completed' },
-  { key: 'cancelled', label: 'Cancelled' },
-]
+import { useState, useEffect } from 'react';
+import { getMyBookings, cancelBooking, submitReview } from '@/api/booking';
+import { BookingCard } from '@/components/booking/BookingCard';
+import { StatCard } from '@/components/common/StatCard';
+import { EmptyState } from '@/components/common/EmptyState';
+import { BookingCardSkeleton, StatCardSkeleton } from '@/components/common/Skeleton';
+import { Modal } from '@/components/common/Modal';
+import { ConfirmModal } from '@/components/common/ConfirmModal';
+import { GlassButton } from '@/components/common/GlassButton';
+import { CalendarCheck, IndianRupee, Clock, CheckCircle, Star } from 'lucide-react';
+import { toast } from 'sonner';
+import { Link } from 'react-router-dom';
+import { BOOKING_STATUS } from '@/lib/constants';
 
 export default function BookingPage() {
-  const [bookings, setBookings] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState('all')
+  const [bookings, setBookings] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [filter, setFilter] = useState('all');
+  
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState('');
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const [confirmModalOpen, setConfirmModalOpen] = useState(false);
+  const [bookingToCancel, setBookingToCancel] = useState(null);
+
+  useEffect(() => {
+    fetchBookings();
+  }, []);
+
+  const fetchBookings = async () => {
+    setIsLoading(true);
     try {
-      const res = await getMyBookings()
-      setBookings(res.data)
-    } catch {} finally { setLoading(false) }
-  }, [])
+      const res = await getMyBookings();
+      setBookings(res.data);
+    } catch (error) {
+      toast.error('Failed to fetch bookings');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  useEffect(() => { load() }, [])
+  const handleCancelClick = (booking) => {
+    setBookingToCancel(booking);
+    setConfirmModalOpen(true);
+  };
 
-  const filtered = tab === 'all'
-    ? bookings
-    : bookings.filter((b) => b.booking_status === tab)
+  const handleConfirmCancel = async () => {
+    if (!bookingToCancel) return;
+    try {
+      await cancelBooking(bookingToCancel.id, { cancellation_reason: 'User requested' });
+      toast.success('Booking cancelled successfully');
+      fetchBookings();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to cancel booking');
+    } finally {
+      setBookingToCancel(null);
+    }
+  };
 
-  const total     = bookings.length
-  const active    = bookings.filter((b) => b.booking_status === 'active').length
-  const completed = bookings.filter((b) => b.booking_status === 'completed').length
-  const spent     = bookings
-    .filter((b) => b.payment_status === 'paid')
-    .reduce((s, b) => s + parseFloat(b.total_amount || 0), 0)
+  const openReviewModal = (booking) => {
+    setSelectedBooking(booking);
+    setRating(5);
+    setComment('');
+    setReviewModalOpen(true);
+  };
+
+  const handleReviewSubmit = async () => {
+    setIsSubmittingReview(true);
+    try {
+      await submitReview(selectedBooking.id, { booking_id: selectedBooking.id, rating, comment });
+      toast.success('Review submitted successfully');
+      setReviewModalOpen(false);
+      fetchBookings();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to submit review');
+    } finally {
+      setIsSubmittingReview(false);
+    }
+  };
+
+  const filteredBookings = filter === 'all' 
+    ? bookings 
+    : bookings?.filter(b => b.booking_status === filter) || [];
+
+  const stats = {
+    total: bookings?.length || 0,
+    active: bookings?.filter(b => b.booking_status === BOOKING_STATUS.ACTIVE)?.length || 0,
+    completed: bookings?.filter(b => b.booking_status === BOOKING_STATUS.COMPLETED)?.length || 0,
+    spent: bookings?.filter(b => b.booking_status === BOOKING_STATUS.COMPLETED || b.booking_status === BOOKING_STATUS.ACTIVE)
+                   ?.reduce((acc, b) => acc + b.total_amount, 0) || 0,
+  };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <CalendarCheck className="size-6 text-brand" />
-        <h1 className="text-2xl font-bold text-foreground">My Bookings</h1>
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold text-white mb-2">My Bookings</h1>
+        <p className="text-white/60">Manage your parking reservations and history.</p>
       </div>
 
       {/* Stats */}
-      {loading ? (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => <StatCardSkeleton key={i} />)}
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard icon={CalendarCheck} label="Total Bookings" value={total}                     color="brand" />
-          <StatCard icon={Clock}         label="Active"         value={active}                    color="green" />
-          <StatCard icon={CheckCircle}   label="Completed"      value={completed}                 color="blue" />
-          <StatCard icon={ReceiptText}   label="Total Spent"    value={`₹${spent.toFixed(0)}`}   color="yellow" />
-        </div>
-      )}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {isLoading ? (
+          Array(4).fill(0).map((_, i) => <StatCardSkeleton key={i} />)
+        ) : (
+          <>
+            <StatCard icon={CalendarCheck} label="Total Bookings" value={stats.total} color="brand-purple" />
+            <StatCard icon={Clock} label="Active Now" value={stats.active} color="brand-cyan" />
+            <StatCard icon={CheckCircle} label="Completed" value={stats.completed} color="green-500" />
+            <StatCard icon={IndianRupee} label="Total Spent" value={`₹${stats.spent}`} color="brand-pink" />
+          </>
+        )}
+      </div>
 
-      {/* Filter tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {STATUS_TABS.map((t) => (
+      {/* Filters */}
+      <div className="flex overflow-x-auto pb-2 gap-2 custom-scrollbar">
+        {['all', BOOKING_STATUS.PENDING, BOOKING_STATUS.CONFIRMED, BOOKING_STATUS.ACTIVE, BOOKING_STATUS.COMPLETED, BOOKING_STATUS.CANCELLED].map(f => (
           <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={cn(
-              'whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-medium transition-colors shrink-0',
-              tab === t.key
-                ? 'bg-brand text-white'
-                : 'bg-muted text-muted-foreground hover:bg-muted/80'
-            )}
+            key={f}
+            onClick={() => setFilter(f)}
+            className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors border ${
+              filter === f 
+                ? 'bg-brand-purple/20 border-brand-purple text-brand-purple' 
+                : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white'
+            }`}
           >
-            {t.label}
-            {t.key !== 'all' && (
-              <span className="ml-1.5 text-xs opacity-70">
-                ({bookings.filter((b) => b.booking_status === t.key).length})
-              </span>
-            )}
+            {f.charAt(0).toUpperCase() + f.slice(1)}
           </button>
         ))}
       </div>
 
-      {/* Content */}
-      {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => <BookingCardSkeleton key={i} />)}
+      {/* Grid */}
+      {isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {Array(6).fill(0).map((_, i) => <BookingCardSkeleton key={i} />)}
         </div>
-      ) : filtered.length === 0 ? (
+      ) : filteredBookings?.length === 0 ? (
         <EmptyState
           icon={CalendarCheck}
-          title="No bookings yet"
-          message={tab === 'all'
-            ? "You haven't made any bookings yet. Find a parking spot to get started."
-            : `No ${tab} bookings found.`}
-          action={tab === 'all' ? { label: 'Find Parking', href: '/map' } : undefined}
+          title="No bookings found"
+          message={filter === 'all' ? "You haven't made any parking bookings yet." : `You have no ${filter} bookings.`}
+          actionText="Find Parking"
+          onAction={() => window.location.href = '/seeker/map'}
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {filtered.map((b) => (
-            <BookingCard key={b.id} booking={b} onUpdate={load} />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredBookings?.map(booking => (
+            <BookingCard 
+              key={booking.id} 
+              booking={booking} 
+              onCancel={handleCancelClick}
+              onReview={openReviewModal}
+            />
           ))}
         </div>
       )}
+
+      {/* Review Modal */}
+      <Modal open={reviewModalOpen} onOpenChange={setReviewModalOpen} title="Rate your experience">
+        <div className="space-y-6">
+          <div className="flex justify-center gap-2">
+            {[1, 2, 3, 4, 5].map(star => (
+              <button key={star} onClick={() => setRating(star)} className="focus:outline-none">
+                <Star className={`w-10 h-10 ${star <= rating ? 'text-yellow-400 fill-yellow-400' : 'text-white/20'}`} />
+              </button>
+            ))}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-white/80 mb-1.5">Comment (Optional)</label>
+            <textarea
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              className="w-full bg-white/5 border border-white/15 rounded-[14px] px-4 py-3 text-white placeholder:text-white/35 focus:outline-none focus:border-brand-purple focus:ring-1 focus:ring-brand-purple transition-all min-h-[100px]"
+              placeholder="How was the parking space?"
+            />
+          </div>
+          <GlassButton onClick={handleReviewSubmit} isLoading={isSubmittingReview} className="w-full">
+            Submit Review
+          </GlassButton>
+        </div>
+      </Modal>
+
+      <ConfirmModal
+        open={confirmModalOpen}
+        onOpenChange={setConfirmModalOpen}
+        title="Cancel Booking"
+        message="Are you sure you want to cancel this booking? This action cannot be undone."
+        onConfirm={handleConfirmCancel}
+        confirmText="Yes, Cancel"
+        isDestructive={true}
+      />
     </div>
-  )
+  );
 }

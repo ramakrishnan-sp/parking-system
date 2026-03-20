@@ -1,145 +1,112 @@
-import { useState } from 'react'
-import { Search, SlidersHorizontal } from 'lucide-react'
-import { cn } from '../../lib/utils'
+import { useState } from 'react';
+import { GlassCard } from '../common/GlassCard';
+import { GlassButton } from '../common/GlassButton';
+import { GlassInput } from '../common/GlassInput';
+import { VEHICLE_TYPES } from '@/lib/constants';
+import { MapPin, Search } from 'lucide-react';
 
-const VEHICLE_TYPES = [
-  { value: '',     label: 'All' },
-  { value: 'car',  label: 'Car' },
-  { value: 'bike', label: 'Bike' },
-  { value: 'ev',   label: 'EV' },
-]
+export const SearchPanel = ({ onSearch, results, onResultClick }) => {
+  const [vehicleType, setVehicleType] = useState(null);
+  const [maxPrice, setMaxPrice] = useState('');
+  const [radius, setRadius] = useState(5);
 
-const SORT_OPTIONS = [
-  { value: 'distance', label: 'Nearest first' },
-  { value: 'price',    label: 'Cheapest first' },
-  { value: 'rating',   label: 'Best rated' },
-]
+  const handleSearch = () => {
+    // Backend enforces radius <= MAX_SEARCH_RADIUS_METERS (default 5000m).
+    const radiusMetersRaw = Math.max(100, Math.round(Number(radius) * 1000));
+    const radiusMeters = Math.min(5000, radiusMetersRaw);
+    const params = { radius: radiusMeters };
 
-export default function SearchPanel({ onSearch, loading = false, resultCount = 0 }) {
-  const [showFilters, setShowFilters] = useState(false)
-  const [filters, setFilters] = useState({
-    vehicle_type: '',
-    max_price: '',
-    radius: '2000',
-    sort_by: 'distance',
-  })
+    if (vehicleType) params.vehicle_type = vehicleType;
 
-  const set = (key, val) => setFilters((f) => ({ ...f, [key]: val }))
+    const maxPriceNumber = Number(maxPrice);
+    if (maxPrice !== '' && Number.isFinite(maxPriceNumber)) {
+      params.max_price = maxPriceNumber;
+    }
 
-  const handleSearch = (e) => {
-    e.preventDefault()
-    onSearch?.({
-      ...filters,
-      radius: parseInt(filters.radius),
-      max_price: filters.max_price ? parseFloat(filters.max_price) : undefined,
-    })
-  }
+    onSearch(params);
+  };
 
   return (
-    <div className="rounded-2xl bg-card ring-1 ring-border shadow-float p-4 w-full max-w-sm">
-      <form onSubmit={handleSearch} className="space-y-3">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">Find Parking</h2>
-            {resultCount > 0 && (
-              <p className="text-xs text-muted-foreground">{resultCount} spaces found</p>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={() => setShowFilters(!showFilters)}
-            className={cn(
-              'flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors',
-              showFilters ? 'bg-brand/10 text-brand' : 'text-muted-foreground hover:bg-muted'
-            )}
-          >
-            <SlidersHorizontal className="size-3.5" /> Filters
-          </button>
-        </div>
-
-        {/* Filters */}
-        {showFilters && (
-          <div className="space-y-3 pt-2 border-t border-border animate-slide-up">
-            {/* Vehicle type */}
-            <div>
-              <p className="text-xs text-muted-foreground mb-1.5">Vehicle type</p>
-              <div className="flex gap-1.5 flex-wrap">
-                {VEHICLE_TYPES.map((vt) => (
-                  <button
-                    key={vt.value}
-                    type="button"
-                    onClick={() => set('vehicle_type', vt.value)}
-                    className={cn(
-                      'px-3 py-1 rounded-full text-xs font-medium transition-colors',
-                      filters.vehicle_type === vt.value
-                        ? 'bg-brand text-white'
-                        : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                    )}
-                  >
-                    {vt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Max price */}
-            <div>
-              <p className="text-xs text-muted-foreground mb-1.5">Max price / hr (₹)</p>
-              <input
-                type="number"
-                min="0"
-                placeholder="No limit"
-                value={filters.max_price}
-                onChange={(e) => set('max_price', e.target.value)}
-                className="h-9 w-full rounded-md bg-background ring-1 ring-border px-3 text-sm outline-none focus:ring-2 focus:ring-brand/50"
-              />
-            </div>
-
-            {/* Radius slider */}
-            <div>
-              <p className="text-xs text-muted-foreground mb-1.5">
-                Radius: {(parseInt(filters.radius) / 1000).toFixed(1)} km
-              </p>
-              <input
-                type="range" min="500" max="5000" step="500"
-                value={filters.radius}
-                onChange={(e) => set('radius', e.target.value)}
-                className="w-full accent-brand"
-              />
-              <div className="flex justify-between text-xs text-muted-foreground mt-0.5">
-                <span>0.5km</span><span>5km</span>
-              </div>
-            </div>
-
-            {/* Sort */}
-            <div>
-              <p className="text-xs text-muted-foreground mb-1.5">Sort by</p>
-              <select
-                value={filters.sort_by}
-                onChange={(e) => set('sort_by', e.target.value)}
-                className="h-9 w-full rounded-md bg-background ring-1 ring-border px-3 text-sm outline-none"
+    <div className="flex flex-col h-full gap-4">
+      <GlassCard className="p-4 flex flex-col gap-4 shrink-0">
+        <div>
+          <label className="block text-xs font-medium text-white/60 mb-2">Vehicle Type</label>
+          <div className="flex gap-2">
+            {Object.values(VEHICLE_TYPES).map((type) => (
+              <button
+                key={type}
+                onClick={() => setVehicleType(type === vehicleType ? null : type)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
+                  vehicleType === type 
+                    ? 'bg-brand-purple/20 border-brand-purple text-brand-purple' 
+                    : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white'
+                }`}
               >
-                {SORT_OPTIONS.map((s) => (
-                  <option key={s.value} value={s.value}>{s.label}</option>
-                ))}
-              </select>
-            </div>
+                {type.charAt(0).toUpperCase() + type.slice(1)}
+              </button>
+            ))}
           </div>
-        )}
+        </div>
+        
+        <div className="flex gap-4">
+          <div className="flex-1">
+            <GlassInput
+              label="Max Price/hr (₹)"
+              type="number"
+              placeholder="e.g. 50"
+              value={maxPrice}
+              onChange={(e) => setMaxPrice(e.target.value)}
+              className="py-2 text-sm"
+            />
+          </div>
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-white/80 mb-1.5">Radius ({radius}km)</label>
+            <input
+              type="range"
+              min="1"
+              max="5"
+              value={radius}
+              onChange={(e) => setRadius(e.target.value)}
+              className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-brand-purple"
+            />
+          </div>
+        </div>
+        
+        <GlassButton onClick={handleSearch} className="w-full py-2 text-sm">
+          <Search className="w-4 h-4 mr-2" /> Search Area
+        </GlassButton>
+      </GlassCard>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="h-9 w-full rounded-lg bg-brand text-white text-sm font-medium flex items-center justify-center gap-2 hover:opacity-90 disabled:opacity-50 transition-all"
-        >
-          {loading
-            ? <span className="size-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-            : <Search className="size-4" />
-          }
-          {loading ? 'Searching…' : 'Search Nearby'}
-        </button>
-      </form>
+      <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+        {results?.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center text-center p-6 text-white/50">
+            <MapPin className="w-12 h-12 mb-4 opacity-20" />
+            <p>No parking spaces found in this area.</p>
+            <p className="text-sm mt-2">Try adjusting your filters or search radius.</p>
+          </div>
+        ) : (
+          results?.map((space) => (
+            <GlassCard 
+              key={space.id} 
+              hover 
+              className="p-4 cursor-pointer"
+              onClick={() => onResultClick(space)}
+            >
+              <div className="flex justify-between items-start mb-2">
+                <h4 className="font-semibold text-white truncate pr-2">{space.title}</h4>
+                <span className="text-brand-cyan font-bold whitespace-nowrap">₹{space.price_per_hour}/hr</span>
+              </div>
+              <div className="flex justify-between items-center text-xs text-white/60">
+                <span>{space.distance_meters ? `${(space.distance_meters / 1000).toFixed(1)} km away` : 'Nearby'}</span>
+                <span className="flex items-center">
+                  <span className={`w-2 h-2 rounded-full mr-1.5 ${space.available_slots > 0 ? 'bg-green-400' : 'bg-red-400'}`}></span>
+                  {space.available_slots} slots
+                </span>
+              </div>
+            </GlassCard>
+          ))
+        )}
+      </div>
     </div>
-  )
-}
+  );
+};

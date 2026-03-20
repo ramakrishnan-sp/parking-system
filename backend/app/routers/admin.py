@@ -10,6 +10,7 @@ from ..models.booking import Booking
 from ..models.payment import Payment
 from ..models.notification import Notification
 from ..schemas.user import UserOut
+from ..schemas.parking import ParkingSpaceOut
 from ..utils.security import require_admin
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
@@ -162,7 +163,7 @@ def reject_owner(
 
 # ── Parking management ────────────────────────────────────────────────────────
 
-@router.get("/parking/pending")
+@router.get("/parking/pending", response_model=List[ParkingSpaceOut])
 def pending_parking(
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
