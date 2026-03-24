@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, Link } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useSessionInit } from '@/hooks/useSessionInit';
 import { ProtectedRoute } from '@/components/common/ProtectedRoute';
@@ -22,6 +22,7 @@ export default function App() {
   const user = useAuthStore((s) => s.user);
   const accessToken = useAuthStore((s) => s.accessToken);
   const isAuthenticated = Boolean(user && accessToken);
+  const authedHome = user?.user_type === 'admin' ? '/admin' : '/seeker/map';
 
   return (
     <Suspense fallback={<FullPageLoader />}>
@@ -32,18 +33,36 @@ export default function App() {
         {/* Auth Routes (Redirect to dashboard if already logged in) */}
         <Route 
           path="/login" 
-          element={isAuthenticated ? <Navigate to={`/${user.user_type}`} replace /> : <Login />} 
+          element={isAuthenticated ? <Navigate to={authedHome} replace /> : <Login />} 
         />
         <Route 
           path="/register" 
-          element={isAuthenticated ? <Navigate to={`/${user.user_type}`} replace /> : <Register />} 
+          element={isAuthenticated ? <Navigate to={authedHome} replace /> : <Register />} 
+        />
+
+        <Route
+          path="/unauthorized"
+          element={
+            <div className="min-h-[100svh] bg-bg-primary flex items-center justify-center text-white">
+              <div className="text-center space-y-4">
+                <p className="text-6xl font-bold text-white/20">403</p>
+                <p className="text-white/60">You don&apos;t have permission to view this page.</p>
+                <Link
+                  to="/seeker/map"
+                  className="inline-block px-4 py-2 bg-brand-purple text-white rounded-xl text-sm"
+                >
+                  Go Home
+                </Link>
+              </div>
+            </div>
+          }
         />
 
         {/* Protected Routes wrapped in DashboardLayout */}
         <Route element={<DashboardLayout />}>
           
           {/* Seeker Routes */}
-          <Route element={<ProtectedRoute allowedRoles={['seeker']} />}>
+          <Route element={<ProtectedRoute allowedRoles={['seeker', 'any']} />}>
             <Route path="/seeker" element={<Navigate to="/seeker/map" replace />} />
             <Route path="/seeker/map" element={<ParkingMap />} />
             <Route path="/seeker/bookings" element={<BookingPage />} />
@@ -61,7 +80,7 @@ export default function App() {
           </Route>
 
           {/* Shared Protected Routes */}
-          <Route element={<ProtectedRoute />}>
+          <Route element={<ProtectedRoute allowedRoles={['any']} />}>
             <Route path="/profile" element={<Profile />} />
           </Route>
         </Route>

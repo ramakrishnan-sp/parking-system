@@ -1,22 +1,49 @@
 import { NavLink } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
-import { USER_TYPES } from '@/lib/constants';
-import { MapPin, Calendar, LayoutDashboard, User, LogOut, Menu, X } from 'lucide-react';
+import { MapPin, Calendar, LayoutDashboard, User, LogOut, X, Building2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 
 export const Sidebar = ({ isOpen, setIsOpen }) => {
-  const { user, logout } = useAuthStore();
+  const { user, logout, isOwner, isAdmin } = useAuthStore();
   
   const links = [
-    { to: '/seeker/map', icon: MapPin, label: 'Find Parking', roles: [USER_TYPES.SEEKER] },
-    { to: '/seeker/bookings', icon: Calendar, label: 'My Bookings', roles: [USER_TYPES.SEEKER] },
-    { to: '/owner', icon: LayoutDashboard, label: 'Owner Dashboard', roles: [USER_TYPES.OWNER] },
-    { to: '/admin', icon: LayoutDashboard, label: 'Admin Dashboard', roles: [USER_TYPES.ADMIN] },
-    { to: '/profile', icon: User, label: 'Profile', roles: [USER_TYPES.SEEKER, USER_TYPES.OWNER, USER_TYPES.ADMIN] },
+    {
+      to: '/seeker/map',
+      icon: MapPin,
+      label: 'Find Parking',
+      // Shown to all regular users
+      show: !isAdmin(),
+    },
+    {
+      to: '/seeker/bookings',
+      icon: Calendar,
+      label: 'My Bookings',
+      // Shown to all regular users
+      show: !isAdmin(),
+    },
+    {
+      to: '/owner',
+      icon: LayoutDashboard,
+      label: 'My Spaces',
+      // Only shown after user has listed a space (is_owner=true)
+      show: isOwner() && !isAdmin(),
+    },
+    {
+      to: '/admin',
+      icon: LayoutDashboard,
+      label: 'Admin Dashboard',
+      show: isAdmin(),
+    },
+    {
+      to: '/profile',
+      icon: User,
+      label: 'Profile',
+      show: true,
+    },
   ];
 
-  const filteredLinks = links.filter(link => link.roles.includes(user?.user_type));
+  const filteredLinks = links.filter((link) => link.show);
 
   return (
     <>
@@ -49,6 +76,18 @@ export const Sidebar = ({ isOpen, setIsOpen }) => {
               {link.label}
             </NavLink>
           ))}
+
+          {/* Show "Become a Host" nudge for non-owner users */}
+          {!isOwner() && !isAdmin() && (
+            <NavLink
+              to="/profile"
+              onClick={() => setIsOpen(false)}
+              className="flex items-center px-4 py-3 rounded-xl text-sm font-medium text-brand-purple/70 hover:bg-brand-purple/10 hover:text-brand-purple transition-colors border border-brand-purple/20 mt-2"
+            >
+              <Building2 className="w-5 h-5 mr-3" />
+              Become a Host
+            </NavLink>
+          )}
         </nav>
 
         <div className="p-4 border-t border-white/10">

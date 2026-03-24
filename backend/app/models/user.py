@@ -14,9 +14,11 @@ class User(Base):
     email            = Column(String(255), unique=True, nullable=False, index=True)
     phone            = Column(String(20),  unique=True, nullable=False, index=True)
     password_hash    = Column(String(255), nullable=False)
-    user_type        = Column(String(10),  nullable=False)   # seeker | owner | admin
+    user_type        = Column(String(10),  nullable=False)   # user | seeker | owner | admin
     is_verified      = Column(Boolean, default=False, nullable=False)
     is_active        = Column(Boolean, default=True,  nullable=False)
+    is_seeker        = Column(Boolean, default=True,  nullable=False)
+    is_owner         = Column(Boolean, default=False, nullable=False)
     profile_photo_url = Column(String(500))
     created_at       = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at       = Column(DateTime(timezone=True), default=datetime.utcnow,

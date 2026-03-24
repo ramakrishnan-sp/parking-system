@@ -91,15 +91,29 @@ def require_role(*roles: str):
 
 
 def require_seeker(current_user=Depends(get_current_user)):
-    if current_user.user_type != "seeker":
-        raise HTTPException(status_code=403, detail="Only parking seekers can perform this action")
-    return current_user
+    """Allow access if user is a seeker, any legacy user type, or admin."""
+    if not current_user.is_active:
+        raise HTTPException(status_code=403, detail="Account is disabled")
+    # is_seeker is True by default for all users
+    # Also allow legacy 'seeker' user_type and admins
+    if current_user.is_seeker or current_user.user_type in ("seeker", "admin"):
+        return current_user
+    raise HTTPException(
+        status_code=403,
+        detail="Seeker access required. Please complete your profile to enable bookings.",
+    )
 
 
 def require_owner(current_user=Depends(get_current_user)):
-    if current_user.user_type != "owner":
-        raise HTTPException(status_code=403, detail="Only parking owners can perform this action")
-    return current_user
+    """Allow access if user has listed a parking space (is_owner=True) or is admin."""
+    if not current_user.is_active:
+        raise HTTPException(status_code=403, detail="Account is disabled")
+    if current_user.is_owner or current_user.user_type in ("owner", "admin"):
+        return current_user
+    raise HTTPException(
+        status_code=403,
+        detail="Owner access required. List a parking space first to unlock owner features.",
+    )
 
 
 def require_admin(current_user=Depends(get_current_user)):

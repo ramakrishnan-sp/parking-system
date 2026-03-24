@@ -4,6 +4,7 @@ import { getMyParkingSpaces, createParking, updateParking, deleteParking } from 
 import { getOwnerBookings } from '@/api/booking';
 import { StatCard } from '@/components/common/StatCard';
 import { EmptyState } from '@/components/common/EmptyState';
+import { GlassCard } from '@/components/common/GlassCard';
 import { ParkingSpaceCard } from '@/components/owner/ParkingSpaceCard';
 import { ParkingForm } from '@/components/owner/ParkingForm';
 import { Modal } from '@/components/common/Modal';
@@ -11,9 +12,10 @@ import { ConfirmModal } from '@/components/common/ConfirmModal';
 import { GlassButton } from '@/components/common/GlassButton';
 import { GlassBadge } from '@/components/common/GlassBadge';
 import { StatCardSkeleton, ParkingCardSkeleton, TableRowSkeleton } from '@/components/common/Skeleton';
-import { Car, CalendarCheck, IndianRupee, Star, Plus } from 'lucide-react';
+import { Car, CalendarCheck, IndianRupee, Star, Plus, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, parseISO } from 'date-fns';
+import { Link } from 'react-router-dom';
 
 export default function OwnerDashboard() {
   const { user } = useAuthStore();
@@ -215,6 +217,23 @@ export default function OwnerDashboard() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {Array(3).fill(0).map((_, i) => <ParkingCardSkeleton key={i} />)}
             </div>
+          ) : !user?.owner_profile?.property_address ? (
+            /* ── No owner profile yet ─────────────────────────────── */
+            <GlassCard className="p-10 text-center border border-brand-purple/20 bg-brand-purple/5">
+              <div className="w-16 h-16 rounded-full bg-brand-purple/20 flex items-center justify-center mx-auto mb-4">
+                <Building2 className="w-8 h-8 text-brand-purple" />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-2">Complete your owner profile first</h3>
+              <p className="text-white/60 max-w-sm mx-auto mb-6 text-sm">
+                Before listing a parking space, please add your property details and KYC documents
+                so admin can verify your account.
+              </p>
+              <Link to="/profile">
+                <GlassButton>
+                  Set Up Owner Profile
+                </GlassButton>
+              </Link>
+            </GlassCard>
           ) : spaces?.length === 0 ? (
             <EmptyState
               icon={Car}

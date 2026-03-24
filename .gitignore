@@ -3,6 +3,11 @@
 **/.env.*
 !**/.env.example
 
+# Firebase Admin credentials (DO NOT COMMIT)
+backend/firebase-service-account.json
+firebase-service-account.json
+**/firebase-service-account.json
+
 # --- Python ---
 __pycache__/
 *.py[cod]

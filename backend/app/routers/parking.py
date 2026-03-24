@@ -122,9 +122,6 @@ async def create_parking(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_owner),
 ):
-    if current_user.owner_profile and current_user.owner_profile.verification_status != "approved":
-        raise HTTPException(status_code=403, detail="Owner account pending admin approval")
-
     pub_lat, pub_lng = offset_coordinates(
         exact_latitude, exact_longitude,
         settings.LOCATION_MASK_MIN_METERS,
@@ -165,6 +162,12 @@ async def create_parking(
         db.add(pp)
 
     db.commit()
+
+    # Auto-promote user to owner when they create their first space
+    if not current_user.is_owner:
+        current_user.is_owner = True
+        db.commit()
+
     db.refresh(ps)
     return {"message": "Parking space submitted for approval", "parking_id": str(ps.id)}
 

@@ -8,13 +8,14 @@ import { BOOKING_STATUS } from '@/lib/constants';
 export const BookingCard = ({ booking, onCancel, onReview }) => {
   const isPendingOrConfirmed = booking.booking_status === BOOKING_STATUS.PENDING || booking.booking_status === BOOKING_STATUS.CONFIRMED;
   const isCompleted = booking.booking_status === BOOKING_STATUS.COMPLETED;
+  const title = booking.parking_space?.title || booking.parking_space?.name || booking.parking_id || 'Parking Space';
 
   return (
     <GlassCard className="p-6 flex flex-col h-full hover">
       <div className="flex justify-between items-start mb-4">
         <div>
           <p className="text-xs font-mono text-white/40 mb-1">REF: {booking.id.split('-')[0].toUpperCase()}</p>
-          <h3 className="font-semibold text-lg text-white">{booking.parking_id}</h3>
+          <h3 className="font-semibold text-lg text-white">{title}</h3>
         </div>
         <GlassBadge status={booking.booking_status} />
       </div>

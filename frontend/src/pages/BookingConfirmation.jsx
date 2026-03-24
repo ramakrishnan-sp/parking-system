@@ -29,6 +29,8 @@ export default function BookingConfirmation() {
   if (isLoading) return <FullPageLoader />;
   if (!booking) return <div className="text-center text-white mt-20">Booking not found</div>;
 
+  const title = booking.parking_space?.title || booking.parking_space?.name || booking.parking_id || 'Parking Space';
+
   return (
     <div className="min-h-[80vh] flex items-center justify-center py-12">
       <div className="w-full max-w-md animate-in fade-in zoom-in-95 duration-500">
@@ -50,7 +52,7 @@ export default function BookingConfirmation() {
             <MapPin className="w-5 h-5 text-brand-purple shrink-0 mt-0.5" />
             <div>
               <p className="text-sm text-white/60 mb-1">Parking Space</p>
-              <p className="font-medium text-white">{booking.parking_id}</p>
+              <p className="font-medium text-white">{title}</p>
             </div>
           </div>
 
@@ -71,6 +73,16 @@ export default function BookingConfirmation() {
               <p className="font-medium text-white">{booking.total_hours} hours</p>
             </div>
           </div>
+
+          {booking.purpose && (
+            <div className="flex items-start gap-3 py-2">
+              <div className="w-5 h-5 shrink-0 mt-0.5 flex items-center justify-center text-brand-cyan font-bold">•</div>
+              <div>
+                <p className="text-sm text-white/60 mb-1">Purpose</p>
+                <p className="font-medium text-white">{String(booking.purpose).replace('_', ' ')}</p>
+              </div>
+            </div>
+          )}
 
           <div className="flex items-start gap-3 py-2 border-t border-white/10 pt-4">
             <CreditCard className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />

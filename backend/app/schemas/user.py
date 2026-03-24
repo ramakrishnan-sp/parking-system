@@ -26,24 +26,29 @@ class UserLogin(BaseModel):
 
 
 class OTPSendRequest(BaseModel):
-    phone: str
-    purpose: str = "registration"   # registration | login | password_reset
+    """Request to send an OTP to a phone number or email address."""
 
-    @field_validator("phone")
-    @classmethod
-    def validate_phone(cls, v: str) -> str:
-        return _validate_phone(v)
+    recipient: str
+    purpose: str = "registration"
+    channel: str = "auto"  # 'sms' | 'email' | 'auto'
+
+    # Backward compat
+    phone: Optional[str] = None
+
+    def get_recipient(self) -> str:
+        return (self.recipient or self.phone or "").strip()
 
 
 class OTPVerifyRequest(BaseModel):
-    phone: str
+    recipient: str
     otp: str
     purpose: str = "registration"
 
-    @field_validator("phone")
-    @classmethod
-    def validate_phone(cls, v: str) -> str:
-        return _validate_phone(v)
+    # Backward compat
+    phone: Optional[str] = None
+
+    def get_recipient(self) -> str:
+        return (self.recipient or self.phone or "").strip()
 
 
 class TokenResponse(BaseModel):
@@ -210,9 +215,36 @@ class UserOut(BaseModel):
     user_type: str
     is_verified: bool
     is_active: bool
+    is_seeker: bool = True
+    is_owner: bool = False
     profile_photo_url: Optional[str] = None
     created_at: datetime
     seeker_profile: Optional[SeekerProfileOut] = None
     owner_profile: Optional[OwnerProfileOut] = None
 
     model_config = {"from_attributes": True}
+
+
+# ── Unified Registration ──────────────────────────────────────────────────────
+
+class UnifiedRegisterForm(BaseModel):
+    """
+    Used for documentation only — actual endpoint uses Form() parameters
+    because it accepts file uploads.
+    """
+
+    full_name: str
+    email: EmailStr
+    phone: str
+    password: str
+    otp_recipient: str
+    residential_address: Optional[str] = None
+
+    @field_validator("password")
+    @classmethod
+    def strong_password(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        return v
+
+

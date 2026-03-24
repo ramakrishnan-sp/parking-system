@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 
 export const useAuthStore = create(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       accessToken: null,
       refreshToken: null,
@@ -37,6 +37,32 @@ export const useAuthStore = create(
       },
       
       setLoading: (loading) => set({ isLoading: loading }),
+
+      // ── Computed role helpers ───────────────────────────────────────────
+      // Use these everywhere instead of checking user_type directly.
+
+      /** True if the user can book / seek parking spaces */
+      isSeeker: () => {
+        const user = get().user;
+        if (!user) return false;
+        if (user.user_type === 'admin') return true;
+        // is_seeker defaults to true for all users; also allow legacy 'seeker' type
+        return user.is_seeker !== false || user.user_type === 'seeker';
+      },
+
+      /** True if the user has listed at least one parking space */
+      isOwner: () => {
+        const user = get().user;
+        if (!user) return false;
+        if (user.user_type === 'admin') return true;
+        return user.is_owner === true || user.user_type === 'owner';
+      },
+
+      /** True if the user is a platform admin */
+      isAdmin: () => {
+        const user = get().user;
+        return user?.user_type === 'admin';
+      },
     }),
     {
       name: 'parkease-auth',

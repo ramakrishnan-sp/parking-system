@@ -18,6 +18,7 @@ from ..utils.security import (
 from ..utils.file_upload import save_upload
 from ..services.otp_service import send_otp, verify_otp
 from ..config import settings
+from pydantic import BaseModel as PydanticBaseModel
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -26,16 +27,36 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 @router.post("/otp/send")
 def api_send_otp(body: OTPSendRequest, db: Session = Depends(get_db)):
-    otp = send_otp(db, body.phone, body.purpose)
-    response = {"message": "OTP sent successfully"}
+    recipient = body.get_recipient().strip()
+    if not recipient:
+        raise HTTPException(status_code=400, detail="recipient (phone or email) is required")
+
+    result = send_otp(
+        db,
+        recipient=recipient,
+        purpose=body.purpose,
+        channel=body.channel,
+    )
+
+    response = {
+        "message": f"OTP sent via {result['channel']}",
+        "channel": result["channel"],
+        "delivered": result["delivered"],
+    }
+
     if settings.APP_ENV == "development":
-        response["otp"] = otp   # Expose in dev only
+        response["otp"] = result["otp"]
+
     return response
 
 
 @router.post("/otp/verify")
 def api_verify_otp(body: OTPVerifyRequest, db: Session = Depends(get_db)):
-    verify_otp(db, body.phone, body.otp, body.purpose)
+    recipient = body.get_recipient().strip()
+    if not recipient:
+        raise HTTPException(status_code=400, detail="recipient is required")
+
+    verify_otp(db, recipient=recipient, otp=body.otp, purpose=body.purpose)
     return {"message": "OTP verified successfully", "verified": True}
 
 
@@ -260,9 +281,159 @@ def verify_phone(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    verify_otp(db, body.phone, body.otp, "registration")
-    if current_user.phone != body.phone:
+    recipient = body.get_recipient().strip()
+    if not recipient:
+        raise HTTPException(status_code=400, detail="recipient is required")
+
+    verify_otp(db, recipient, body.otp, "registration")
+    if current_user.phone != recipient:
         raise HTTPException(status_code=400, detail="Phone number mismatch")
     current_user.is_verified = True
     db.commit()
     return {"message": "Phone verified successfully"}
+
+
+# ── Unified Registration (new — no role selection) ────────────────────────────
+
+@router.post("/register/unified", status_code=status.HTTP_201_CREATED)
+async def register_unified(
+    full_name: str = Form(...),
+    email: str = Form(...),
+    phone: str = Form(...),
+    password: str = Form(...),
+    otp_recipient: str = Form(...),
+    residential_address: str = Form(None),
+    profile_photo: UploadFile = File(None),
+    db: Session = Depends(get_db),
+):
+    """
+    Register a new user. Before calling this endpoint, the user must have:
+    1. Called POST /auth/otp/send with their phone or email
+    2. Called POST /auth/otp/verify to verify the OTP
+    """
+    # ── Duplicate check ────────────────────────────────────────────────────
+    if db.query(User).filter(User.email == email).first():
+        raise HTTPException(status_code=400, detail="Email already registered")
+    if db.query(User).filter(User.phone == phone).first():
+        raise HTTPException(status_code=400, detail="Phone already registered")
+
+    # ── Confirm OTP was verified for this recipient ────────────────────────
+    from ..models.otp import OTPVerification as OTPModel
+
+    otp_recipient = otp_recipient.strip()
+    recent_verified = (
+        db.query(OTPModel)
+        .filter(
+            OTPModel.phone == otp_recipient,
+            OTPModel.purpose == "registration",
+            OTPModel.is_used == True,
+        )
+        .order_by(OTPModel.created_at.desc())
+        .first()
+    )
+
+    if not recent_verified and settings.APP_ENV != "development":
+        raise HTTPException(
+            status_code=400,
+            detail="OTP verification required. Please verify your phone or email first.",
+        )
+
+    is_verified = recent_verified is not None or settings.APP_ENV == "development"
+
+    # ── Optional profile photo ─────────────────────────────────────────────
+    photo_url = None
+    if profile_photo and profile_photo.filename:
+        photo_url = await save_upload(
+            profile_photo, "profiles", settings.allowed_image_types_list
+        )
+
+    # ── Create user ────────────────────────────────────────────────────────
+    user = User(
+        full_name=full_name,
+        email=email,
+        phone=phone,
+        password_hash=hash_password(password),
+        user_type="user",           # New unified type — no seeker/owner at registration
+        is_verified=is_verified,
+        is_active=True,
+        is_seeker=True,             # Everyone can seek by default
+        is_owner=False,             # Becomes True when they list a space
+        profile_photo_url=photo_url,
+    )
+    db.add(user)
+    db.flush()
+
+    # ── Optional: create minimal seeker profile to store residential address ─
+    if residential_address:
+        from ..models.user import SeekerProfile
+
+        profile = SeekerProfile(
+            user_id=user.id,
+            residential_address=residential_address,
+        )
+        db.add(profile)
+
+    db.commit()
+    db.refresh(user)
+
+    return {
+        "message": "Registration successful. You can now sign in.",
+        "user_id": str(user.id),
+        "is_verified": user.is_verified,
+    }
+
+
+class OTPLoginRequest(PydanticBaseModel):
+    email: str
+    password: str
+    otp_recipient: str
+
+
+@router.post("/otp-login", response_model=TokenResponse)
+def otp_login(body: OTPLoginRequest, db: Session = Depends(get_db)):
+    """Login using email + password, after phone/email OTP has been verified."""
+    user = db.query(User).filter(User.email == body.email).first()
+    if not user or not verify_password(body.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="Account is disabled")
+
+    if settings.APP_ENV != "development":
+        from ..models.otp import OTPVerification as OTPModel
+
+        recent = (
+            db.query(OTPModel)
+            .filter(
+                OTPModel.phone == body.otp_recipient.strip(),
+                OTPModel.purpose == "login",
+                OTPModel.is_used == True,
+            )
+            .order_by(OTPModel.created_at.desc())
+            .first()
+        )
+        if not recent:
+            raise HTTPException(
+                status_code=401,
+                detail=(
+                    "OTP verification required before login. Please verify your phone or email."
+                ),
+            )
+
+    access_token = create_access_token(str(user.id), user.user_type)
+    raw_refresh, hashed_refresh = create_refresh_token()
+
+    rt = RefreshToken(
+        user_id=user.id,
+        token_hash=hashed_refresh,
+        expires_at=datetime.now(timezone.utc)
+        + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+    )
+    db.add(rt)
+    db.commit()
+
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=raw_refresh,
+        user_type=user.user_type,
+        user_id=str(user.id),
+    )

@@ -5,6 +5,7 @@ from .user import (
     TokenResponse, RefreshTokenRequest,
     OTPSendRequest, OTPVerifyRequest,
     PasswordChangeRequest,
+    UnifiedRegisterForm,
 )
 from .parking import (
     ParkingSpaceCreate, ParkingSpaceUpdate,
@@ -27,6 +28,7 @@ __all__ = [
     "TokenResponse", "RefreshTokenRequest",
     "OTPSendRequest", "OTPVerifyRequest",
     "PasswordChangeRequest",
+    "UnifiedRegisterForm",
     "ParkingSpaceCreate", "ParkingSpaceUpdate",
     "ParkingSpaceOut", "ParkingSpacePublicOut",
     "NearbySearchParams",

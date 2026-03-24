@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { MapContainer } from '@/components/map/MapContainer';
 import { SearchPanel } from '@/components/map/SearchPanel';
 import { ParkingCard } from '@/components/map/ParkingCard';
@@ -6,8 +7,11 @@ import { BookingForm } from '@/components/booking/BookingForm';
 import { Modal } from '@/components/common/Modal';
 import { getNearbyParking } from '@/api/parking';
 import { toast } from 'sonner';
+import { useAuthStore } from '@/store/authStore';
+import { Car } from 'lucide-react';
 
 export default function ParkingMap() {
+  const { user } = useAuthStore();
   const [userLocation, setUserLocation] = useState(null);
   const [mapCenter, setMapCenter] = useState([19.0760, 72.8777]); // Default Mumbai
   const [parkingSpaces, setParkingSpaces] = useState([]);
@@ -66,7 +70,24 @@ export default function ParkingMap() {
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-[calc(100svh-120px)] gap-4 relative">
+    <div className="space-y-4">
+      {/* ── Seeker profile nudge ─────────────────────────────────── */}
+      {user && !user.seeker_profile?.vehicle_number && (
+        <div className="flex items-center gap-3 p-3 bg-brand-cyan/10 border border-brand-cyan/20 rounded-xl text-sm text-brand-cyan animate-in fade-in duration-500">
+          <Car className="w-4 h-4 shrink-0" />
+          <span className="flex-1">
+            Add your vehicle details to speed up bookings.
+          </span>
+          <Link
+            to="/profile"
+            className="text-xs font-semibold underline hover:text-white transition-colors whitespace-nowrap"
+          >
+            Complete Profile →
+          </Link>
+        </div>
+      )}
+
+      <div className="flex flex-col md:flex-row h-[calc(100svh-120px)] gap-4 relative">
       {/* Left Panel */}
       <div className="w-full md:w-80 flex flex-col h-[40vh] md:h-full shrink-0 z-10">
         <SearchPanel 
@@ -104,6 +125,7 @@ export default function ParkingMap() {
           onClose={() => setIsBookingModalOpen(false)} 
         />
       </Modal>
+      </div>
     </div>
   );
 }
