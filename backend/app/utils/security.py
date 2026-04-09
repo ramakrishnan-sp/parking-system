@@ -91,12 +91,10 @@ def require_role(*roles: str):
 
 
 def require_seeker(current_user=Depends(get_current_user)):
-    """Allow access if user is a seeker, any legacy user type, or admin."""
+    """Allow access if user can act as a seeker (seeker/owner/admin)."""
     if not current_user.is_active:
         raise HTTPException(status_code=403, detail="Account is disabled")
-    # is_seeker is True by default for all users
-    # Also allow legacy 'seeker' user_type and admins
-    if current_user.is_seeker or current_user.user_type in ("seeker", "admin"):
+    if current_user.user_type in ("seeker", "owner", "admin", "user"):
         return current_user
     raise HTTPException(
         status_code=403,
@@ -105,10 +103,10 @@ def require_seeker(current_user=Depends(get_current_user)):
 
 
 def require_owner(current_user=Depends(get_current_user)):
-    """Allow access if user has listed a parking space (is_owner=True) or is admin."""
+    """Allow access if user is an owner (or admin)."""
     if not current_user.is_active:
         raise HTTPException(status_code=403, detail="Account is disabled")
-    if current_user.is_owner or current_user.user_type in ("owner", "admin"):
+    if current_user.user_type in ("owner", "admin"):
         return current_user
     raise HTTPException(
         status_code=403,

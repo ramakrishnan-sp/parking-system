@@ -163,9 +163,9 @@ async def create_parking(
 
     db.commit()
 
-    # Auto-promote user to owner when they create their first space
-    if not current_user.is_owner:
-        current_user.is_owner = True
+    # Safe fallback: if a legacy/seeded account reaches here, ensure it is an owner.
+    if current_user.user_type not in ("owner", "admin"):
+        current_user.user_type = "owner"
         db.commit()
 
     db.refresh(ps)

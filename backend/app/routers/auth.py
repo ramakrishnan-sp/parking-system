@@ -353,11 +353,10 @@ async def register_unified(
         email=email,
         phone=phone,
         password_hash=hash_password(password),
-        user_type="user",           # New unified type — no seeker/owner at registration
+        # DB schema only allows seeker/owner/admin; default unified signups to seeker.
+        user_type="seeker",
         is_verified=is_verified,
         is_active=True,
-        is_seeker=True,             # Everyone can seek by default
-        is_owner=False,             # Becomes True when they list a space
         profile_photo_url=photo_url,
     )
     db.add(user)

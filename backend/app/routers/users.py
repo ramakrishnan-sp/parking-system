@@ -65,7 +65,7 @@ async def setup_seeker_profile(
 ):
     """
     Create or update the seeker profile for the current user.
-    Marks user.is_seeker = True.
+    (User role is derived from user_type; no extra flags are stored.)
     """
     # Upload files if provided
     license_url = None
@@ -104,8 +104,6 @@ async def setup_seeker_profile(
     if aadhaar_url:
         profile.aadhaar_proof_url = aadhaar_url
 
-    # Mark user as seeker
-    current_user.is_seeker = True
     db.commit()
 
     return {
@@ -131,7 +129,7 @@ async def setup_owner_profile(
 ):
     """
     Create or update the owner profile for the current user.
-    Marks user.is_owner = True (still requires admin KYC approval for listings).
+    Promotes the account to owner (still requires admin KYC approval for listings).
     """
     govt_url = None
     aadhaar_url = None
@@ -171,8 +169,9 @@ async def setup_owner_profile(
     if aadhaar_url:
         profile.aadhaar_proof_url = aadhaar_url
 
-    # Mark user as owner
-    current_user.is_owner = True
+    # Promote user to owner so owner features are unlocked.
+    if current_user.user_type != "admin":
+        current_user.user_type = "owner"
     db.commit()
 
     return {

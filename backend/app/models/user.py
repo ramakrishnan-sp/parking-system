@@ -14,15 +14,23 @@ class User(Base):
     email            = Column(String(255), unique=True, nullable=False, index=True)
     phone            = Column(String(20),  unique=True, nullable=False, index=True)
     password_hash    = Column(String(255), nullable=False)
-    user_type        = Column(String(10),  nullable=False)   # user | seeker | owner | admin
+    user_type        = Column(String(10),  nullable=False)   # seeker | owner | admin (legacy: user)
     is_verified      = Column(Boolean, default=False, nullable=False)
     is_active        = Column(Boolean, default=True,  nullable=False)
-    is_seeker        = Column(Boolean, default=True,  nullable=False)
-    is_owner         = Column(Boolean, default=False, nullable=False)
     profile_photo_url = Column(String(500))
     created_at       = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at       = Column(DateTime(timezone=True), default=datetime.utcnow,
                               onupdate=datetime.utcnow)
+
+    @property
+    def is_seeker(self) -> bool:
+        """Compatibility flag used by the frontend; derived from user_type."""
+        return self.user_type in ("seeker", "owner", "admin", "user")
+
+    @property
+    def is_owner(self) -> bool:
+        """Compatibility flag used by the frontend; derived from user_type."""
+        return self.user_type in ("owner", "admin")
 
     # Relationships
     seeker_profile   = relationship("SeekerProfile", back_populates="user", uselist=False,
